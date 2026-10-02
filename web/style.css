@@ -1,0 +1,360 @@
+/* RefBook panel. Every selector is rb- prefixed; colours come from ComfyUI's theme variables. */
+.rb-root, .rb-lightbox, .rb-overlay {
+  --rb-bg: var(--comfy-menu-bg, #353535);
+  --rb-bg2: var(--comfy-menu-secondary-bg, var(--comfy-input-bg, #2a2a2a));
+  --rb-input: var(--comfy-input-bg, #222);
+  --rb-fg: var(--input-text, var(--fg-color, #ddd));
+  --rb-muted: var(--descrip-text, #999);
+  --rb-border: var(--border-color, #4e4e4e);
+  --rb-hover: color-mix(in srgb, var(--rb-fg) 8%, transparent);
+  --rb-accent: var(--p-primary-color, #4a90e2);
+  --rb-active: color-mix(in srgb, var(--rb-accent) 22%, transparent);
+  --rb-error: var(--error-text, #ff5c5c);
+  --rb-ok: #3fb950;
+}
+
+.rb-root {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: var(--rb-bg);
+  color: var(--rb-fg);
+  border: 1px solid var(--rb-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
+  outline: none;
+  overflow: hidden;
+}
+.rb-root[data-mode="bar"] { border-radius: 18px; }
+.rb-root[data-mode="bar"] .rb-body,
+.rb-root[data-mode="bar"] .rb-status,
+.rb-root[data-mode="bar"] .rb-rz,
+.rb-root[data-mode="bar"] .rb-open-only { display: none; }
+.rb-root *, .rb-root *::before, .rb-root *::after { box-sizing: border-box; }
+.rb-root button, .rb-root input, .rb-root select, .rb-root textarea { font: inherit; color: inherit; }
+.rb-root [hidden] { display: none !important; }
+.rb-flex { flex: 1; }
+
+/* ---- bar (collapsed = only this) ---- */
+.rb-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  background: var(--rb-bg2);
+  cursor: pointer;
+  user-select: none;
+  flex: none;
+}
+.rb-root[data-mode="open"] .rb-bar { border-bottom: 1px solid var(--rb-border); cursor: move; }
+.rb-logo { font-weight: 700; font-size: 11px; color: var(--rb-accent); letter-spacing: 0.5px; }
+.rb-project-slot { min-width: 0; }
+.rb-project-select {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 2px;
+  max-width: 260px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rb-project-select:hover { border-color: var(--rb-border); }
+.rb-project-select option { background: var(--rb-bg); color: var(--rb-fg); }
+
+/* ---- buttons ---- */
+.rb-icon-btn, .rb-link-btn, .rb-big-btn, .rb-menu-item, .rb-tool-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.rb-icon-btn { min-width: 24px; height: 24px; padding: 0 4px; line-height: 1; color: var(--rb-muted); }
+.rb-icon-btn:hover { background: var(--rb-hover); color: var(--rb-fg); }
+.rb-link-btn { color: var(--rb-accent); padding: 0 6px; font-weight: 600; }
+.rb-link-btn:hover { text-decoration: underline; }
+.rb-big-btn { padding: 12px 28px; font-size: 15px; background: var(--rb-accent); color: #fff; border-radius: 6px; }
+
+/* ---- body ---- */
+.rb-body { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 8px 10px 0; gap: 8px; }
+
+/* tabs (sections and groups) */
+.rb-tabs { display: flex; flex-wrap: wrap; gap: 4px; flex: none; }
+.rb-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border: 1px solid var(--rb-border);
+  border-radius: 14px;
+  background: var(--rb-input);
+  cursor: pointer;
+  user-select: none;
+  max-width: 180px;
+}
+.rb-tab:hover { border-color: color-mix(in srgb, var(--rb-accent) 60%, var(--rb-border)); }
+.rb-tab.rb-active { background: var(--rb-accent); border-color: var(--rb-accent); color: #fff; }
+.rb-tab-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rb-tab-add { color: var(--rb-muted); padding: 4px 10px; border-style: dashed; background: none; }
+.rb-tab-add:hover { color: var(--rb-fg); }
+.rb-group-tabs .rb-tab { border-radius: 6px; padding: 3px 10px; }
+.rb-group-tabs .rb-tab.rb-active { background: var(--rb-active); border-color: var(--rb-accent); color: var(--rb-fg); }
+
+/* section bar: one connected segmented control (not separate pills) */
+.rb-sec-tabs {
+  flex-wrap: nowrap;
+  gap: 0;
+  border: 1px solid var(--rb-border);
+  border-radius: 6px;
+  background: var(--rb-input);
+}
+.rb-sec-tabs .rb-tab {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+  justify-content: center;
+  padding: 5px 8px;
+  border: none;
+  border-right: 1px solid var(--rb-border);
+  border-radius: 0;
+  background: none;
+}
+.rb-sec-tabs .rb-tab:first-child { border-radius: 5px 0 0 5px; }
+.rb-sec-tabs .rb-tab:hover { background: var(--rb-hover); }
+.rb-sec-tabs .rb-tab.rb-active { background: var(--rb-accent); color: #fff; }
+.rb-sec-tabs .rb-tab-add { flex: none; border: none; border-radius: 0 5px 5px 0; padding: 5px 12px; }
+
+/* hover badges on tabs and tiles: ✕ delete (top-right), ✎ rename (top-left) */
+.rb-x, .rb-edit {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--rb-border);
+  background: var(--rb-bg);
+  color: var(--rb-muted);
+  font-size: 9px;
+  line-height: 14px;
+  text-align: center;
+  cursor: pointer;
+  display: none;
+  z-index: 1;
+}
+.rb-x:hover { background: var(--rb-error); border-color: var(--rb-error); color: #fff; }
+.rb-edit { right: auto; left: -6px; font-size: 10px; }
+.rb-edit:hover { background: var(--rb-accent); border-color: var(--rb-accent); color: #fff; }
+.rb-tab:hover > .rb-x, .rb-tab:hover > .rb-edit, .rb-tile:hover .rb-x, .rb-tile:hover .rb-edit { display: block; }
+.rb-sec-tabs .rb-x, .rb-sec-tabs .rb-edit { top: -7px; }
+.rb-tile .rb-edit { top: -5px; left: -5px; }
+
+/* entry tiles: one horizontal row */
+.rb-tiles {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 6px 4px 4px;
+  flex: none;
+  border-bottom: 1px solid var(--rb-border);
+}
+.rb-tile { width: 76px; flex: none; cursor: pointer; user-select: none; }
+.rb-tile-box { position: relative; width: 76px; height: 76px; }
+.rb-tile-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background: var(--rb-input);
+}
+.rb-tile-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--rb-border);
+  color: var(--rb-muted);
+  font-size: 18px;
+  font-weight: 600;
+}
+.rb-tile:hover .rb-tile-img { border-color: color-mix(in srgb, var(--rb-accent) 50%, transparent); }
+.rb-tile.rb-active .rb-tile-img { border: 2px solid var(--rb-accent); }
+.rb-tile.rb-active { cursor: zoom-in; }
+.rb-tile-add .rb-tile-empty { font-size: 24px; font-weight: 400; }
+.rb-tile-add:hover .rb-tile-empty { color: var(--rb-fg); border-color: var(--rb-accent); }
+.rb-tile-name {
+  margin-top: 3px;
+  text-align: center;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rb-tile.rb-active .rb-tile-name { color: var(--rb-accent); font-weight: 600; }
+.rb-tile .rb-x { top: -5px; right: -5px; }
+.rb-tile-pic {
+  position: absolute;
+  left: 3px;
+  bottom: 3px;
+  padding: 0 3px;
+  border: none;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+  display: none;
+}
+.rb-tile:hover .rb-tile-pic { display: block; }
+
+/* ---- prompt editor: fills the rest of the window ---- */
+.rb-editor { flex: 1; min-height: 120px; display: flex; flex-direction: column; gap: 4px; }
+.rb-editor-tools { display: flex; align-items: center; gap: 6px; flex: none; }
+.rb-count { color: var(--rb-muted); font-size: 11px; white-space: nowrap; }
+.rb-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-color: var(--rb-border);
+  background: var(--rb-input);
+}
+.rb-tool-btn:hover:not(:disabled) { border-color: var(--rb-accent); }
+.rb-tool-btn:disabled { opacity: 0.4; cursor: default; }
+.rb-tool-btn.rb-primary { background: var(--rb-accent); border-color: var(--rb-accent); color: #fff; }
+.rb-tool-btn.rb-ok { background: var(--rb-ok); border-color: var(--rb-ok); color: #fff; }
+.rb-tool-btn.rb-bad { border-color: var(--rb-error); color: var(--rb-error); background: none; }
+.rb-prompt {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  padding: 8px 10px;
+  resize: none;
+  background: var(--rb-input);
+  border: 1px solid var(--rb-border);
+  border-radius: 6px;
+  line-height: 1.55;
+  font-family: ui-monospace, Consolas, "Microsoft JhengHei", monospace;
+  font-size: 13px;
+  outline: none;
+}
+.rb-prompt:focus { border-color: var(--rb-accent); }
+.rb-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--rb-muted);
+  text-align: center;
+  padding: 20px;
+}
+.rb-placeholder.rb-error { color: var(--rb-error); }
+.rb-mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; word-break: break-all; }
+
+.rb-inline-input {
+  min-width: 40px;
+  padding: 0 4px;
+  background: var(--rb-input);
+  color: var(--rb-fg);
+  border: 1px solid var(--rb-accent);
+  border-radius: 3px;
+  outline: none;
+  font-weight: inherit;
+  font-size: inherit;
+}
+.rb-tile-name .rb-inline-input { width: 100%; }
+
+/* ---- status line ---- */
+.rb-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 2px 10px;
+  color: var(--rb-muted);
+  font-size: 11.5px;
+  flex: none;
+}
+.rb-status-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rb-status-text.rb-error { color: var(--rb-error); }
+
+/* ---- drag & drop marks ---- */
+.rb-drop-before { box-shadow: -3px 0 0 var(--rb-accent); }
+.rb-drop-after { box-shadow: 3px 0 0 var(--rb-accent); }
+.rb-drop-into { outline: 2px dashed var(--rb-accent); outline-offset: 2px; }
+
+/* ---- popover menu ---- */
+.rb-menu {
+  position: fixed;
+  z-index: 3;
+  min-width: 140px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--rb-bg);
+  border: 1px solid var(--rb-border);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+.rb-menu-item { padding: 5px 10px; text-align: left; }
+.rb-menu-item:hover { background: var(--rb-hover); }
+.rb-menu-item.rb-danger { color: var(--rb-error); }
+
+/* ---- resize corners ---- */
+.rb-rz { position: absolute; width: 14px; height: 14px; z-index: 2; }
+.rb-rz-nw { left: 0; top: 0; cursor: nwse-resize; }
+.rb-rz-ne { right: 0; top: 0; cursor: nesw-resize; }
+.rb-rz-sw { left: 0; bottom: 0; cursor: nesw-resize; }
+.rb-rz-se { right: 0; bottom: 0; cursor: nwse-resize; }
+
+/* ---- image lightbox ---- */
+.rb-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.82);
+  cursor: zoom-out;
+  outline: none;
+}
+.rb-lightbox img { max-width: 95vw; max-height: 95vh; object-fit: contain; border-radius: 4px; }
+
+/* ---- large prompt editor ---- */
+.rb-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  outline: none;
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
+}
+.rb-overlay *, .rb-overlay *::before, .rb-overlay *::after { box-sizing: border-box; }
+.rb-overlay button, .rb-overlay textarea { font: inherit; color: inherit; }
+.rb-viewer {
+  width: min(960px, 90vw);
+  height: min(760px, 85vh);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--rb-bg);
+  color: var(--rb-fg);
+  border: 1px solid var(--rb-border);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.rb-viewer .rb-prompt { font-size: 15px; line-height: 1.65; padding: 12px 14px; }
+.rb-viewer-title { font-weight: 600; margin-right: 6px; }
+.rb-tool-btn.rb-icon-only { padding: 3px 7px; }
