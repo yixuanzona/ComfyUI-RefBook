@@ -4,9 +4,14 @@ A small floating panel in ComfyUI that keeps your project's characters, backgrou
 
 ![RefBook panel](docs/screenshot.jpg)
 
-## Why
+## Use cases
 
-When you work on one IP over a long time (training LoRAs, making assets, generating story scenes), the same character descriptions, backgrounds and style prompts get reused again and again. Prompt nodes live inside a single workflow and disappear when you switch workflows. RefBook stays on screen no matter which workflow is open, so your project's reference prompts are always one click away.
+- **Long-running IP projects.** Keep each character's look, signature poses, recurring backgrounds and art style in one place, and reuse them across every workflow.
+- **LoRA training.** Keep caption and trigger prompts consistent for every character.
+- **Asset production.** Generate sprites, illustrations or variations with the same base prompt every time.
+- **Story scenes.** Combine a character, a background and a style for each scene without hunting through old workflows.
+
+Prompt nodes live inside a single workflow and are gone when you switch workflows. RefBook stays on screen whichever workflow is open.
 
 ## Install
 
@@ -30,7 +35,7 @@ Each row ends with **＋** to add something new. Hover over any name to see **�
 ## Features
 
 - **Always on screen.** A floating panel, not a node, so it never gets lost in a workflow. Typing or scrolling in the panel never affects the canvas.
-- **Projects.** One project per IP. Duplicate a project to keep separate stages, such as "Kana" and "Kana · Final".
+- **Projects.** One project per IP. Duplicate a project to keep separate stages, such as "Project" and "Project · Final".
 - **Pictures.** Drag an image onto a card, paste it with **Ctrl+V**, or click 🖼. Click the selected card to view it full size.
 - **Edit in place.** Type straight into the prompt box. Everything saves automatically.
 - **Undo.** **Undo** steps back through your prompt edits. Deleted items can be restored with the **Undo** link at the bottom for 8 seconds.
@@ -51,7 +56,15 @@ ComfyUI/user/default/ref_book/
   .trash/     deleted items
 ```
 
-To use the same data on another computer, copy this folder there. A setting to point RefBook at a synced folder (Dropbox, OneDrive, NAS, Git) is planned.
+To use the same data on another computer, copy this folder there.
+
+## Planned
+
+- Choose where data is stored, so you can use a synced folder (Dropbox, OneDrive, NAS, Git) across computers
+- Warning when the same project was edited on another computer
+- Search across items and prompts
+- Export / import a project as a single file
+- A RefBook node that sends the selected prompt straight into your workflow
 
 ## License
 
