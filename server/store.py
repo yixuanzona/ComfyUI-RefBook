@@ -67,6 +67,15 @@ def _str(value, field):
     return value
 
 
+def _with_extras(src, known):
+    """Known keys first in a fixed order, then any keys this version doesn't know (sorted).
+    Keeping unknown keys lets an older RefBook on another computer save without wiping newer fields."""
+    for k in sorted(src):
+        if k not in known:
+            known[k] = src[k]
+    return known
+
+
 def normalize_project(data):
     """Validate a project dict and rebuild it with a fixed key order (readable git diffs)."""
     if not isinstance(data, dict):
@@ -77,32 +86,32 @@ def normalize_project(data):
         for e in s.get("entries") or []:
             groups = []
             for g in e.get("groups") or []:
-                groups.append({
+                groups.append(_with_extras(g, {
                     "id": check_id(g.get("id")),
                     "name": _str(g.get("name", ""), "group.name"),
                     "text": _str(g.get("text", ""), "group.text"),
                     "inAll": bool(g.get("inAll", True)),
-                })
+                }))
             cover = e.get("cover")
-            entries.append({
+            entries.append(_with_extras(e, {
                 "id": check_id(e.get("id")),
                 "name": _str(e.get("name", ""), "entry.name"),
                 "cover": check_id(cover) if cover else None,
                 "groups": groups,
-            })
-        sections.append({
+            }))
+        sections.append(_with_extras(s, {
             "id": check_id(s.get("id")),
             "name": _str(s.get("name", ""), "section.name"),
             "entries": entries,
-        })
-    return {
+        }))
+    return _with_extras(data, {
         "schema": SCHEMA,
         "id": check_id(data.get("id")),
         "name": _str(data.get("name", ""), "project.name"),
         "rev": int(data.get("rev") or 0),
         "updatedAt": _str(data.get("updatedAt") or now_iso(), "updatedAt"),
         "sections": sections,
-    }
+    })
 
 
 def covers_of(project):
@@ -147,6 +156,30 @@ class Vault:
             m = PROJECT_FILE_RE.match(fn)
             if m:
                 yield m.group(2), fn, m.group(1)
+
+    def conflict_files(self):
+        """JSON files in projects/ we ignore, e.g. 'name__p_x (conflicted copy).json' made by sync tools."""
+        return [fn for fn in sorted(os.listdir(self._dir("projects")))
+                if fn.lower().endswith(".json") and not fn.startswith(".tmp-") and not PROJECT_FILE_RE.match(fn)]
+
+    def has_projects(self):
+        return os.path.isdir(os.path.join(self.root, "projects")) and any(True for _ in self._project_files())
+
+    def copy_into(self, target_root):
+        """Copy projects and images into another vault folder, never overwriting files already there."""
+        copied = 0
+        for sub in ("projects", "images", "thumbs"):
+            src = os.path.join(self.root, sub)
+            if not os.path.isdir(src):
+                continue
+            dst = os.path.join(target_root, sub)
+            os.makedirs(dst, exist_ok=True)
+            for fn in os.listdir(src):
+                if fn.startswith(".tmp-") or os.path.exists(os.path.join(dst, fn)):
+                    continue
+                shutil.copy2(os.path.join(src, fn), os.path.join(dst, fn))
+                copied += 1
+        return copied
 
     def _path_of(self, pid):
         check_id(pid)

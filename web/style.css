@@ -63,6 +63,21 @@
 .rb-project-select:hover { border-color: var(--rb-border); }
 .rb-project-select option { background: var(--rb-bg); color: var(--rb-fg); }
 
+/* ---- banner: changes from another computer ---- */
+.rb-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 6px 10px;
+  background: color-mix(in srgb, #e3a008 18%, var(--rb-bg));
+  border-bottom: 1px solid color-mix(in srgb, #e3a008 50%, var(--rb-border));
+  font-size: 12px;
+  flex: none;
+}
+.rb-banner-text { flex: 1; min-width: 160px; }
+.rb-root[data-mode="bar"] .rb-banner { display: none; }
+
 /* ---- buttons ---- */
 .rb-icon-btn, .rb-link-btn, .rb-big-btn, .rb-menu-item, .rb-tool-btn {
   background: none;

@@ -7,6 +7,7 @@ export const HOTKEY = { key: "p", macKey: "π", code: "KeyP", alt: true }; // Al
 const LS_KEY = "refbook.ui.v1";
 const DEFAULT_W = 420, DEFAULT_H = 540, MIN_W = 340, MIN_H = 320; // default ≈ a bit wider than ComfyUI's Run bar
 const SAVE_DELAY = 500;
+const POLL_MS = 15000; // check for edits made on other computers (shared NAS folder)
 const UNDO_MS = 8000;
 const COPIED_MS = 1200;
 const HISTORY_IDLE_MS = 1000; // a pause this long starts a new Undo step
@@ -117,8 +118,10 @@ export class Panel {
     this.statusText = h("span", { class: "rb-status-text" });
     this.statusActions = h("span", { class: "rb-status-actions" });
     this.body = h("div", { class: "rb-body" }, this.secRow, this.tileRow, this.groupRow, this.editor);
+    this.banner = h("div", { class: "rb-banner", hidden: true });
     this.root = h("div", { class: "rb-root", tabindex: "-1" },
       this.bar,
+      this.banner,
       this.body,
       h("div", { class: "rb-status" }, this.statusText, this.statusActions),
       ...["nw", "ne", "sw", "se"].map((d) => h("div", { class: `rb-rz rb-rz-${d}`, dataset: { dir: d } })),
@@ -143,6 +146,8 @@ export class Panel {
     window.addEventListener("resize", () => this.applyLayout());
     window.addEventListener("pagehide", () => this.flush());
     document.addEventListener("visibilitychange", () => { if (document.hidden) this.flush(); });
+    window.addEventListener("focus", () => this.checkRemote());
+    setInterval(() => this.checkRemote(), POLL_MS);
 
     this.applyLayout();
     this.loadProjects(this.prefs.projectId);
@@ -326,7 +331,8 @@ export class Panel {
       this.saveAgain = true;
       return this.saving;
     }
-    if (!this.dirty || !this.project) return;
+    // while a conflict is unresolved, keep edits in memory; the banner decides what happens to them
+    if (!this.dirty || !this.project || this.conflict) return;
     this.dirty = false;
     const p = this.project;
     this.saving = (async () => {
@@ -340,8 +346,8 @@ export class Panel {
         if (this.project === p && !this.statusActions.childElementCount) this.setStatus(`Saved ${hhmm()}`);
       } catch (err) {
         if (this.project === p) this.dirty = true;
-        if (err.status === 409) this.setStatus("This project was changed on another computer and could not be saved. Please reload the page.", "error");
-        else this.setStatus("Save failed: " + err.message, "error");
+        if (err.status === 409 && this.project === p) this.showConflict(err.body?.rev);
+        else if (err.status !== 409) this.setStatus("Save failed: " + err.message, "error");
       } finally {
         this.saving = null;
         if (this.saveAgain) {
@@ -351,6 +357,119 @@ export class Panel {
       }
     })();
     return this.saving;
+  }
+
+  // ================= other computers (shared folder) =================
+
+  showBanner(text, actions = []) {
+    this.banner.replaceChildren(h("span", { class: "rb-banner-text", text }),
+      ...actions.map(([label, fn]) => h("button", { class: "rb-link-btn", text: label, onclick: fn })));
+    this.banner.hidden = false;
+  }
+
+  hideBanner() {
+    this.banner.hidden = true;
+  }
+
+  // a save was rejected because the file on disk is newer
+  showConflict(diskRev) {
+    const p = this.project;
+    this.conflict = { rev: diskRev ?? p.rev };
+    this.showBanner("This project was changed on another computer.", [
+      ["Reload", async () => {
+        this.conflict = null;
+        this.dirty = false;
+        this.hideBanner();
+        await this.openProject(p.id);
+        this.setStatus("Reloaded the latest version");
+      }],
+      ["Keep mine", () => {
+        p.rev = this.conflict.rev;
+        this.conflict = null;
+        this.hideBanner();
+        this.dirty = true;
+        this.flush();
+      }],
+    ]);
+  }
+
+  // every POLL_MS and on window focus: pick up projects added/renamed elsewhere and newer versions of the open one
+  async checkRemote() {
+    if (document.hidden || this.checking) return;
+    this.checking = true;
+    try {
+      const list = await API.listProjects();
+      const p = this.project;
+      const changed = JSON.stringify(list.map((x) => [x.id, x.name])) !== JSON.stringify(this.projects.map((x) => [x.id, x.name]));
+      this.projects = list;
+      if (changed) this.renderProjectSelect();
+      if (!p || this.conflict) return;
+      const remote = list.find((x) => x.id === p.id);
+      if (!remote) {
+        this.showBanner("This project was deleted or moved on another computer.", [["OK", () => this.hideBanner()]]);
+        return;
+      }
+      if (remote.rev <= p.rev) return;
+      if (this.dirty || this.saving) {
+        this.showConflict(remote.rev);
+        return;
+      }
+      // don't pull the text out from under someone who is typing or using the large editor
+      const active = document.activeElement;
+      if (document.querySelector(".rb-overlay") || (this.root.contains(active) && active.matches("textarea, input"))) return;
+      await this.openProject(p.id);
+      this.setStatus(`Updated from another computer ${hhmm()}`);
+    } catch {
+      // offline NAS etc.: try again next time
+    } finally {
+      this.checking = false;
+    }
+  }
+
+  async chooseDataFolder() {
+    let cfg;
+    try {
+      cfg = await API.getConfig();
+    } catch (err) {
+      this.setStatus("Could not read settings: " + err.message, "error");
+      return;
+    }
+    if (cfg.source === "env") {
+      this.setStatus(`Data folder is fixed by REFBOOK_DIR: ${cfg.vaultDir}`, "error");
+      return;
+    }
+    const note = cfg.conflictFiles.length
+      ? `\n\nIgnored sync-conflict files: ${cfg.conflictFiles.join(", ")}` : "";
+    const message = `Current: ${cfg.vaultDir}\n\nEnter a full folder path, e.g. Z:\\RefBook or \\\\NAS\\share\\RefBook. ` +
+      `Leave empty to use the default folder.${note}`;
+    let value;
+    try {
+      const dlg = this.app.extensionManager?.dialog;
+      value = dlg?.prompt
+        ? await dlg.prompt({ title: "RefBook data folder", message, defaultValue: cfg.source === "config" ? cfg.vaultDir : "" })
+        : window.prompt(message, cfg.source === "config" ? cfg.vaultDir : "");
+    } catch {
+      return;
+    }
+    if (value == null) return;
+    value = String(value).trim();
+    try {
+      const dry = await API.setConfig({ vaultDir: value, dryRun: true });
+      if (dry.vaultDir === cfg.vaultDir) return;
+      let copyExisting = false;
+      if (!dry.hasProjects && this.projects.length) {
+        copyExisting = await this.confirm("Copy projects?",
+          `The new folder has no projects yet. Copy your ${this.projects.length} project(s) and their images there? Nothing in the current folder is deleted.`);
+      }
+      await this.flush();
+      const res = await API.setConfig({ vaultDir: value, copyExisting });
+      this.hideBanner();
+      this.conflict = null;
+      await this.loadProjects(this.prefs.projectId);
+      this.setStatus(`Data folder: ${res.vaultDir}` + (copyExisting ? ` (${res.copied} files copied)` : ""));
+    } catch (err) {
+      this.setStatus("Could not change folder: " + err.message, "error");
+    }
   }
 
   // ================= selection =================
@@ -618,6 +737,7 @@ export class Panel {
       { label: "New project", action: () => this.createProject() },
       has && { label: "Rename project", action: () => this.startRename(this.project.id) },
       has && { label: "Duplicate project", action: () => this.createProject(this.project.id) },
+      { label: "Data folder…", action: () => this.chooseDataFolder() },
       (has || this.projectError) && { label: "Delete project", danger: true, action: () => this.deleteProject() },
     ]);
   }

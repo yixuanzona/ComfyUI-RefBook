@@ -1,5 +1,6 @@
 """aiohttp routes under /refbook/api, registered on ComfyUI's PromptServer route table."""
 import asyncio
+import json
 import logging
 import os
 
@@ -8,16 +9,68 @@ from aiohttp import web
 import folder_paths
 from server import PromptServer
 
-from .store import IMAGE_MAX_BYTES, Vault, VaultError
+from .store import IMAGE_MAX_BYTES, Vault, VaultError, atomic_write_bytes, dump_json
 
 PREFIX = "/refbook/api"
+ENV_DIR = "REFBOOK_DIR"
 routes = PromptServer.instance.routes
 write_lock = asyncio.Lock()
 
 
+def default_dir():
+    return os.path.join(folder_paths.get_user_directory(), "default", "ref_book")
+
+
+def config_path():
+    # per computer, outside the vault: two machines may reach the same NAS folder by different paths
+    return os.path.join(folder_paths.get_user_directory(), "default", "ref_book_config.json")
+
+
+def vault_dir():
+    """(folder, source) where source is 'env', 'config' or 'default'."""
+    if os.environ.get(ENV_DIR):
+        return os.path.abspath(os.environ[ENV_DIR]), "env"
+    try:
+        with open(config_path(), "r", encoding="utf-8") as f:
+            configured = json.load(f).get("vaultDir")
+        if configured:
+            return configured, "config"
+    except (OSError, ValueError, AttributeError):
+        pass
+    return default_dir(), "default"
+
+
 def vault():
-    # Phase 1: fixed default location under ComfyUI/user/default/
-    return Vault(os.path.join(folder_paths.get_user_directory(), "default", "ref_book"))
+    return Vault(vault_dir()[0])
+
+
+def check_folder(path):
+    """A vault folder must be an existing, writable, absolute directory (e.g. Z:\\RefBook or \\\\nas\\share\\RefBook)."""
+    if not isinstance(path, str) or not path.strip():
+        raise VaultError("folder path is empty")
+    path = os.path.normpath(path.strip().strip('"'))
+    if not os.path.isabs(path):
+        raise VaultError("please enter a full path, e.g. Z:\\RefBook or \\\\NAS\\share\\RefBook")
+    if not os.path.isdir(path):
+        raise VaultError(f"folder not found: {path}")
+    probe = os.path.join(path, f".refbook-write-test-{os.getpid()}")
+    try:
+        with open(probe, "w") as f:
+            f.write("ok")
+        os.remove(probe)
+    except OSError as e:
+        raise VaultError(f"folder is not writable: {e}")
+    return path
+
+
+def config_payload():
+    folder, source = vault_dir()
+    v = Vault(folder)
+    try:
+        conflicts = v.conflict_files()
+    except OSError:
+        conflicts = []
+    return {"vaultDir": folder, "defaultDir": default_dir(), "source": source, "conflictFiles": conflicts}
 
 
 def err(status, message, **extra):
@@ -129,4 +182,28 @@ async def get_image(request):
 @routes.get(PREFIX + "/config")
 @handle_errors
 async def get_config(request):
-    return web.json_response({"vaultDir": vault().root})
+    return web.json_response(config_payload())
+
+
+@routes.put(PREFIX + "/config")
+@handle_errors
+async def put_config(request):
+    """Body: {vaultDir, dryRun?, copyExisting?}. Empty vaultDir resets to the default folder.
+    dryRun only validates and reports whether the target already has projects."""
+    body = await json_body(request)
+    if vault_dir()[1] == "env":
+        raise VaultError(f"the folder is fixed by the {ENV_DIR} environment variable")
+    raw = (body.get("vaultDir") or "").strip()
+    target = await asyncio.to_thread(check_folder, raw) if raw else default_dir()
+    if body.get("dryRun"):
+        return web.json_response({"vaultDir": target, "hasProjects": await asyncio.to_thread(Vault(target).has_projects)})
+    async with write_lock:
+        copied = 0
+        if body.get("copyExisting"):
+            copied = await asyncio.to_thread(vault().copy_into, target)
+        if raw:
+            os.makedirs(os.path.dirname(config_path()), exist_ok=True)
+            atomic_write_bytes(config_path(), dump_json({"vaultDir": target}))
+        elif os.path.exists(config_path()):
+            os.remove(config_path())
+    return web.json_response({**config_payload(), "copied": copied})

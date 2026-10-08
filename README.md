@@ -56,12 +56,19 @@ ComfyUI/user/default/ref_book/
   .trash/     deleted items
 ```
 
-To use the same data on another computer, copy this folder there.
+## Share between computers (NAS)
+
+1. Create a shared folder on your NAS, for example `\\NAS\share\RefBook`.
+2. On each computer, open the panel's **⋯** menu → **Data folder…** and enter that path. A mapped drive such as `Z:\RefBook` also works.
+3. The first time, RefBook offers to copy your existing projects into the new folder.
+
+Changes made on another computer show up automatically within about 15 seconds. If two people edit the same project at the same time, a bar appears with **Reload** (take theirs) or **Keep mine**.
+
+Tips: keep the NAS off the public internet, limit the share to your team, and turn on NAS snapshots.
 
 ## Planned
 
-- Choose where data is stored, so you can use a synced folder (Dropbox, OneDrive, NAS, Git) across computers
-- Warning when the same project was edited on another computer
+- Reference image gallery for each item, with drag-and-drop into workflows
 - Search across items and prompts
 - Export / import a project as a single file
 - A RefBook node that sends the selected prompt straight into your workflow

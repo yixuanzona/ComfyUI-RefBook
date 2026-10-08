@@ -32,6 +32,9 @@ export const saveProject = (project, baseRev) => call("PUT", `/projects/${projec
 export const deleteProject = (id) => call("DELETE", `/projects/${id}`);
 export const restoreProject = (id) => call("POST", "/trash/restore", { kind: "project", id });
 
+export const getConfig = () => call("GET", "/config");
+export const setConfig = (body) => call("PUT", "/config", body);
+
 export function uploadImage(file) {
   const fd = new FormData();
   fd.append("image", file, file.name || "image.png");
