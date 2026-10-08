@@ -1,6 +1,7 @@
 // RefBook floating panel: plain DOM, no framework. All classes are prefixed with rb-.
 // Layout (single column): bar (project) -> section tabs -> entry tiles -> group tabs -> big prompt box.
 import * as API from "./api.js";
+import { refreshRefBookNodes, setNodeLink } from "./nodeUi.js";
 
 // ---- constants (change here) ----
 export const HOTKEY = { key: "p", macKey: "π", code: "KeyP", alt: true }; // Alt+P
@@ -144,7 +145,12 @@ export class Panel {
       e.target.value = "";
       if (files.length) this.addRefs(this.refTarget, files);
     } });
-    this.root.append(this.fileInput, this.refInput);
+    this.replaceInput = h("input", { type: "file", accept: "image/*", style: "display:none", onchange: (e) => {
+      const f = e.target.files[0];
+      e.target.value = "";
+      if (f) this.replaceRef(this.replaceTarget, f);
+    } });
+    this.root.append(this.fileInput, this.refInput, this.replaceInput);
 
     document.body.append(this.root);
     this.setupBarDrag();
@@ -1026,27 +1032,31 @@ export class Panel {
   }
 
   // ================= reference images (Refs) =================
+  // a ref is a slot { id, image, name }: "Replace" changes image but keeps id, so linked nodes follow it
 
   renderRefs(entry) {
     entry.refs ||= [];
     const grid = h("div", { class: "rb-refs" });
     for (const r of entry.refs) {
-      const isCover = entry.cover === r.id;
-      const tile = h("div", { class: "rb-ref", draggable: "true", title: "Click to enlarge · drag onto the canvas to use it",
-        onclick: () => this.openLightbox(API.imageUrl(r.id, "full")),
+      const isCover = entry.cover === r.image;
+      const tile = h("div", { class: "rb-ref", draggable: "true",
+        title: "Click to enlarge · drag onto the canvas (hold Alt for a linked RefBook Image node)",
+        onclick: () => this.openLightbox(API.imageUrl(r.image, "full")),
         ondragstart: (e) => {
           this.dragStart(e, "ref", r.id);
           e.dataTransfer.effectAllowed = "copyMove";
-          e.dataTransfer.setData(REF_DND, JSON.stringify({ id: r.id, name: r.name, entry: entry.name }));
+          e.dataTransfer.setData(REF_DND, JSON.stringify({ image: r.image, name: r.name, entry: entry.name, link: this.linkFor(entry, r) }));
         },
         ondragend: () => this.dragEnd(),
       },
         h("div", { class: "rb-ref-box" },
-          h("img", { class: "rb-ref-img", loading: "lazy", draggable: "false", src: API.imageUrl(r.id, "thumb") }),
+          h("img", { class: "rb-ref-img", loading: "lazy", draggable: "false", src: API.imageUrl(r.image, "thumb") }),
           ...this.badges(r.id, () => this.deleteRef(entry, r)),
           h("button", { class: "rb-ref-cover" + (isCover ? " rb-on" : ""), text: "★",
             title: isCover ? "This image is the item's cover" : "Use as the item's cover",
-            onclick: (e) => { e.stopPropagation(); entry.cover = r.id; this.scheduleSave(0); this.render(); } })),
+            onclick: (e) => { e.stopPropagation(); entry.cover = r.image; this.scheduleSave(0); this.render(); } }),
+          h("button", { class: "rb-ref-replace", text: "↻", title: "Replace with a new version (linked nodes update)",
+            onclick: (e) => { e.stopPropagation(); this.replaceTarget = { entryId: entry.id, refId: r.id }; this.replaceInput.click(); } })),
         h("div", { class: "rb-ref-name", dataset: { nameOf: r.id }, text: r.name, title: "Double-click or ✎ to rename",
           ondblclick: (e) => { e.stopPropagation(); this.startRename(r.id); } }),
       );
@@ -1077,7 +1087,7 @@ export class Panel {
       h("div", { class: "rb-editor-tools" },
         h("span", { class: "rb-count", text: `${entry.refs.length} image${entry.refs.length === 1 ? "" : "s"}` }),
         h("div", { class: "rb-flex" }),
-        h("span", { class: "rb-count", text: "Drag an image onto the canvas to load it" })),
+        h("span", { class: "rb-count", text: "Drag onto the canvas · Alt = linked node" })),
       grid);
   }
 
@@ -1089,18 +1099,47 @@ export class Panel {
     for (const file of files) {
       this.setStatus(`Uploading ${done + 1} / ${files.length}…`);
       try {
-        const id = await API.uploadImage(file, "ref");
-        entry.refs.push({ id, name: (file.name || "").replace(/\.[^.]+$/, "") || `Ref ${entry.refs.length + 1}` });
+        const image = await API.uploadImage(file, "ref");
+        entry.refs.push({ id: newId("r"), image, name: (file.name || "").replace(/\.[^.]+$/, "") || `Ref ${entry.refs.length + 1}` });
         done++;
       } catch (err) {
         this.setStatus(`Could not upload ${file.name || "image"}: ${err.message}`, "error");
       }
     }
     if (!done) return;
-    if (!entry.cover) entry.cover = entry.refs[0].id; // first reference doubles as the cover
+    if (!entry.cover) entry.cover = entry.refs[0].image; // first reference doubles as the cover
     this.scheduleSave(0);
     this.render();
     this.setStatus(`Added ${done} image${done === 1 ? "" : "s"}`);
+  }
+
+  // new version of a reference: same slot (nodes stay linked), new image; the old image can be restored with Undo
+  async replaceRef({ entryId, refId }, file) {
+    const entry = this.findEntry(entryId)?.entry;
+    const r = entry?.refs?.find((x) => x.id === refId);
+    if (!r) return;
+    this.setStatus("Uploading the new version…");
+    try {
+      const image = await API.uploadImage(file, "ref");
+      const old = r.image, wasCover = entry.cover === old;
+      r.image = image;
+      if (wasCover) entry.cover = image;
+      this.dirty = true;
+      await this.flush(); // linked nodes read the saved project for their preview
+      this.render();
+      refreshRefBookNodes(this.app.canvas?.graph || this.app.graph);
+      this.showUndo(`Replaced "${r.name}"`, async () => {
+        r.image = old;
+        if (wasCover) entry.cover = old;
+        this.dirty = true;
+        await this.flush();
+        this.render();
+        refreshRefBookNodes(this.app.canvas?.graph || this.app.graph);
+        this.setStatus("Restored the previous image");
+      });
+    } catch (err) {
+      this.setStatus("Could not replace the image: " + err.message, "error");
+    }
   }
 
   deleteRef(entry, r) {
@@ -1111,14 +1150,37 @@ export class Panel {
     });
   }
 
-  // dropping a reference image on the canvas loads it into a Load Image node (the one under the cursor, or a new one)
+  // what a RefBook node stores: ids plus a readable name path (used if an id goes missing)
+  linkFor(entry, item) {
+    const found = this.findEntry(entry.id);
+    const kind = entry.groups.includes(item) ? "g" : "r";
+    return { p: this.project.id, e: entry.id, [kind]: item.id,
+      path: [this.project.name, found?.section.name ?? "", entry.name, item.name] };
+  }
+
+  // the panel's current selection, for a node's "Use panel selection" button
+  selectionLink(kind) {
+    const entry = this.currentEntry();
+    if (!entry) return null;
+    if (kind === "g") {
+      const g = this.currentGroup();
+      return g && !this.sel.r ? this.linkFor(entry, g) : null;
+    }
+    const r = (entry.refs || []).find((x) => x.image === entry.cover) || (entry.refs || [])[0];
+    return r ? this.linkFor(entry, r) : null;
+  }
+
+  // dropping a reference on the canvas:
+  //   on a Load Image    -> copies the image into ComfyUI's input folder and loads it there
+  //   on a RefBook Image -> links that node to this reference
+  //   on empty canvas    -> new Load Image (copy), or with Alt held a new RefBook Image (linked)
   setupCanvasDrop() {
     const isRefDrop = (e) => e.dataTransfer?.types.includes(REF_DND) && !this.root.contains(e.target)
       && (e.target.closest?.("#graph-canvas-container") || e.target.tagName === "CANVAS");
     window.addEventListener("dragover", (e) => {
       if (!isRefDrop(e)) return;
       e.preventDefault();
-      e.dataTransfer.dropEffect = "copy";
+      e.dataTransfer.dropEffect = e.altKey ? "link" : "copy";
     }, true);
     window.addEventListener("drop", (e) => {
       if (!isRefDrop(e)) return;
@@ -1133,17 +1195,28 @@ export class Panel {
     const graph = canvas.graph || this.app.graph; // the graph being viewed (may be a subgraph)
     canvas.adjustMouseEvent(e);
     const pos = [e.canvasX, e.canvasY];
+    // hit-test from pos/size directly (title bar included) rather than the render-time bounding box
+    const titleH = window.LiteGraph.NODE_TITLE_HEIGHT || 30;
+    let node = [...(graph._nodes || graph.nodes || [])].reverse().find((n) => (n.type === "LoadImage" || n.type === "RefBookImage")
+      && pos[0] >= n.pos[0] && pos[0] <= n.pos[0] + n.size[0]
+      && pos[1] >= n.pos[1] - titleH && pos[1] <= n.pos[1] + n.size[1]);
+    if (node?.type === "RefBookImage" || (!node && e.altKey)) {
+      if (!node) {
+        node = window.LiteGraph.createNode("RefBookImage");
+        node.pos = pos;
+        graph.add(node);
+      }
+      setNodeLink(node, ref.link);
+      graph.setDirtyCanvas?.(true, true);
+      this.setStatus(`Linked "${ref.name}" to RefBook Image`);
+      return;
+    }
     try {
       this.setStatus(`Loading "${ref.name}" into the workflow…`);
-      const blob = await (await fetch(API.imageUrl(ref.id, "full"))).blob();
+      const blob = await (await fetch(API.imageUrl(ref.image, "full"))).blob();
       const ext = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" }[blob.type] || "png";
       const slug = (s) => String(s || "").replace(/[^\w-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "ref";
-      const name = await API.uploadToComfyInput(blob, `refbook_${slug(ref.entry)}_${slug(ref.name)}_${ref.id}.${ext}`);
-      // hit-test from pos/size directly (title bar included) rather than the render-time bounding box
-      const titleH = window.LiteGraph.NODE_TITLE_HEIGHT || 30;
-      let node = [...(graph._nodes || graph.nodes || [])].reverse().find((n) => n.type === "LoadImage"
-        && pos[0] >= n.pos[0] && pos[0] <= n.pos[0] + n.size[0]
-        && pos[1] >= n.pos[1] - titleH && pos[1] <= n.pos[1] + n.size[1]);
+      const name = await API.uploadToComfyInput(blob, `refbook_${slug(ref.entry)}_${slug(ref.name)}_${ref.image}.${ext}`);
       if (!node) {
         node = window.LiteGraph.createNode("LoadImage");
         node.pos = pos;

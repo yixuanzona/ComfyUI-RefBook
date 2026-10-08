@@ -1,5 +1,5 @@
 /* RefBook panel. Every selector is rb- prefixed; colours come from ComfyUI's theme variables. */
-.rb-root, .rb-lightbox, .rb-overlay {
+.rb-root, .rb-lightbox, .rb-overlay, .rb-picker {
   --rb-bg: var(--comfy-menu-bg, #353535);
   --rb-bg2: var(--comfy-menu-secondary-bg, var(--comfy-input-bg, #2a2a2a));
   --rb-input: var(--comfy-input-bg, #222);
@@ -441,3 +441,78 @@
 .rb-viewer .rb-prompt { font-size: 15px; line-height: 1.65; padding: 12px 14px; }
 .rb-viewer-title { font-weight: 600; margin-right: 6px; }
 .rb-tool-btn.rb-icon-only { padding: 3px 7px; }
+
+/* ---- Refs: replace button ---- */
+.rb-ref-replace {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 0 5px;
+  border: none;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #ddd;
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+  display: none;
+}
+.rb-ref:hover .rb-ref-replace { display: block; }
+.rb-ref-replace:hover { background: var(--rb-accent); color: #fff; }
+
+/* ---- picker for RefBook nodes ---- */
+.rb-picker {
+  position: fixed;
+  z-index: 10001;
+  width: 340px;
+  max-height: min(520px, 80vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--rb-bg);
+  color: var(--rb-fg);
+  border: 1px solid var(--rb-border);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
+}
+.rb-picker *, .rb-picker *::before, .rb-picker *::after { box-sizing: border-box; }
+.rb-picker button, .rb-picker input { font: inherit; color: inherit; }
+.rb-picker-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 4px; font-weight: 600; }
+.rb-picker-search {
+  margin: 4px 10px 6px;
+  padding: 4px 8px;
+  background: var(--rb-input);
+  border: 1px solid var(--rb-border);
+  border-radius: 4px;
+  outline: none;
+}
+.rb-picker-search:focus { border-color: var(--rb-accent); }
+.rb-picker-list { overflow-y: auto; padding: 0 10px 10px; }
+.rb-picker-empty { padding: 16px 4px; color: var(--rb-muted); text-align: center; }
+.rb-picker-project { margin: 8px 0 4px; font-size: 11px; font-weight: 700; color: var(--rb-accent); text-transform: uppercase; letter-spacing: 0.5px; }
+.rb-picker-entry { padding: 6px 0; border-top: 1px solid var(--rb-border); }
+.rb-picker-entry-name { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-weight: 600; }
+.rb-picker-entry-name img, .rb-picker-noimg { width: 22px; height: 22px; border-radius: 4px; object-fit: cover; background: var(--rb-input); flex: none; }
+.rb-picker-section { margin-left: auto; color: var(--rb-muted); font-size: 11px; font-weight: 400; }
+.rb-picker-chips { display: flex; flex-wrap: wrap; gap: 4px; padding-left: 28px; }
+.rb-picker-chip {
+  padding: 2px 10px;
+  border: 1px solid var(--rb-border);
+  border-radius: 12px;
+  background: var(--rb-input);
+  cursor: pointer;
+}
+.rb-picker-chip:hover, .rb-picker-thumb:hover { border-color: var(--rb-accent); }
+.rb-picker-chip.rb-active, .rb-picker-thumb.rb-active { border-color: var(--rb-accent); background: var(--rb-active); }
+.rb-picker-thumbs { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 28px; }
+.rb-picker-thumb {
+  width: 64px;
+  padding: 2px;
+  border: 1px solid var(--rb-border);
+  border-radius: 6px;
+  background: var(--rb-input);
+  cursor: pointer;
+  text-align: center;
+}
+.rb-picker-thumb img { display: block; width: 100%; height: 56px; object-fit: cover; border-radius: 4px; }
+.rb-picker-thumb span { display: block; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

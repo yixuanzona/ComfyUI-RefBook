@@ -1,9 +1,8 @@
-"""ComfyUI-RefBook: floating panel for managing character prompts."""
+"""ComfyUI-RefBook: floating panel for an IP's reusable prompts and reference images, plus RefBook nodes."""
 from .server import routes  # noqa: F401  registers /refbook/api/* on import
+from .nodes import comfy_entrypoint  # V3 node registration (RefBook Prompt / RefBook Image)
 
-# No nodes yet (phase 3). Defined so ComfyUI loads the package and serves WEB_DIRECTORY.
-NODE_CLASS_MAPPINGS = {}
-NODE_DISPLAY_NAME_MAPPINGS = {}
 WEB_DIRECTORY = "./web"
 
-__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
+# No NODE_CLASS_MAPPINGS on purpose: ComfyUI only uses comfy_entrypoint when it is absent.
+__all__ = ["WEB_DIRECTORY", "comfy_entrypoint"]

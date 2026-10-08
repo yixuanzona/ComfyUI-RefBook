@@ -40,11 +40,22 @@ Each row ends with **＋** to add something new. Hover over any name to see **�
 - **Edit in place.** Type straight into the prompt box. Everything saves automatically.
 - **Undo.** **Undo** steps back through your prompt edits. Deleted items can be restored with the **Undo** link at the bottom for 8 seconds.
 - **Large editor.** **⤢** opens a big window for long prompts.
-- **Reference images (Refs).** Each item has a 🖼 **Refs** tab with a gallery for character sheets, turnarounds, palettes or mood images. Originals are kept at full quality. **Drag an image onto the canvas** to load it into a Load Image node, or drop it on an existing Load Image to swap the picture. ★ makes an image the item's cover.
+- **Reference images (Refs).** Each item has a 🖼 **Refs** tab with a gallery for character sheets, turnarounds, palettes or mood images. Originals are kept at full quality. **Drag an image onto the canvas** to load a copy into a Load Image node (or drop it on an existing Load Image to swap the picture). ↻ replaces an image with a new version; ★ makes it the item's cover.
 - **Drag to reorder** sections, cards and groups. Drop a card on another section to move it.
 - **Safe storage.** Plain files, a backup before every save (last 20 kept), and a trash folder for deleted items.
 
 The default group names for new items can be changed in **ComfyUI Settings → RefBook**.
+
+## Nodes: always use the latest version
+
+Copy and drag-to-canvas give you a fixed copy. To have a workflow follow RefBook instead, use the nodes (category **RefBook**):
+
+- **RefBook Prompt** outputs the text of a prompt group, for example into CLIP Text Encode.
+- **RefBook Image** outputs a reference image (IMAGE + MASK), for example into IPAdapter, Redux, ControlNet or an edit model.
+
+Click **Pick from RefBook…** on the node, or **Use panel selection** to take what is selected in the panel. You can also hold **Alt** while dragging a reference onto the canvas to create a linked RefBook Image node, or drop a reference onto an existing one.
+
+Every run reads RefBook again, so when someone edits a prompt or replaces an image (↻), the next run uses the new version. If the item can't be found (for example the shared folder isn't reachable), the node uses the last version it loaded and shows a warning in the console instead of stopping the workflow.
 
 ## Where your data is
 
@@ -72,7 +83,6 @@ Tips: keep the NAS off the public internet, limit the share to your team, and tu
 
 - Search across items and prompts
 - Export / import a project as a single file
-- A RefBook node that sends the selected prompt straight into your workflow
 
 ## License
 

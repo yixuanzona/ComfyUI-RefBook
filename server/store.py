@@ -94,7 +94,11 @@ def normalize_project(data):
                     "text": _str(g.get("text", ""), "group.text"),
                     "inAll": bool(g.get("inAll", True)),
                 }))
-            refs = [_with_extras(r, {"id": check_id(r.get("id")), "name": _str(r.get("name", ""), "ref.name")})
+            # a ref is a stable slot (id) showing an image; "Replace" swaps the image but keeps the slot,
+            # so RefBook Image nodes pointing at the slot pick up the new picture. Older refs had no
+            # "image" field: their id was the image id, which stays valid as the slot id.
+            refs = [_with_extras(r, {"id": check_id(r.get("id")), "image": check_id(r.get("image") or r.get("id")),
+                                     "name": _str(r.get("name", ""), "ref.name")})
                     for r in e.get("refs") or []]
             cover = e.get("cover")
             entries.append(_with_extras(e, {
@@ -126,7 +130,7 @@ def images_of(project):
         for e in s["entries"]:
             if e.get("cover"):
                 ids.add(e["cover"])
-            ids.update(r["id"] for r in e.get("refs", []))
+            ids.update(r["image"] for r in e.get("refs", []))
     return ids
 
 
@@ -258,6 +262,37 @@ class Vault:
             self._trash_removed_items(old, new)
             self._trash_orphan_images(images_of(old) - images_of(new))
         return {"id": pid, "rev": new["rev"], "updatedAt": new["updatedAt"]}
+
+    def resolve(self, ref):
+        """Find what a RefBook node points at. ref = {"p", "e", "g" or "r", "path": [project, section, item, name]}.
+        Ids first; if one is gone (e.g. the item was recreated) fall back to matching names.
+        Returns (project, entry, group_or_ref); raises NotFound."""
+        path = list(ref.get("path") or []) + [None] * 4
+        project = None
+        if ref.get("p"):
+            try:
+                project = self.get_project(ref["p"])
+            except NotFound:
+                pass
+        if project is None and path[0]:
+            match = next((x for x in self.list_projects() if x["name"] == path[0] and not x.get("error")), None)
+            if match:
+                project = self.get_project(match["id"])
+        if project is None:
+            raise NotFound(f"project '{path[0] or ref.get('p')}' not found")
+        entries = [(s, e) for s in project["sections"] for e in s["entries"]]
+        found = next(((s, e) for s, e in entries if e["id"] == ref.get("e")), None) \
+            or next(((s, e) for s, e in entries if e["name"] == path[2] and s["name"] == path[1]), None) \
+            or next(((s, e) for s, e in entries if e["name"] == path[2]), None)
+        if found is None:
+            raise NotFound(f"item '{path[2] or ref.get('e')}' not found in '{project['name']}'")
+        entry = found[1]
+        kind, items = ("g", entry["groups"]) if ref.get("g") else ("r", entry.get("refs", []))
+        item = next((x for x in items if x["id"] == ref.get(kind)), None) \
+            or next((x for x in items if x["name"] == path[3]), None)
+        if item is None:
+            raise NotFound(f"'{path[3] or ref.get(kind)}' not found in '{entry['name']}'")
+        return project, entry, item
 
     def delete_project(self, pid):
         path = self._path_of(pid)
