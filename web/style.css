@@ -227,6 +227,74 @@
 }
 .rb-tile:hover .rb-tile-pic { display: block; }
 
+/* ---- Refs: pinned tab + reference gallery ---- */
+.rb-group-tabs .rb-refs-tab { gap: 6px; border-style: solid; background: none; }
+.rb-group-tabs .rb-refs-tab.rb-active { background: var(--rb-active); border-color: var(--rb-accent); }
+.rb-refs-count {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--rb-hover);
+  color: var(--rb-muted);
+  font-size: 10.5px;
+  text-align: center;
+}
+.rb-refs {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 12px 10px;
+  padding: 8px 6px;
+  border: 1px solid var(--rb-border);
+  border-radius: 6px;
+  background: var(--rb-input);
+}
+.rb-ref { width: 104px; cursor: zoom-in; user-select: none; }
+.rb-ref-box { position: relative; width: 104px; height: 104px; }
+.rb-ref-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background: var(--rb-bg);
+}
+.rb-ref:hover .rb-ref-img { border-color: color-mix(in srgb, var(--rb-accent) 60%, transparent); }
+.rb-ref-add { cursor: pointer; }
+.rb-ref-add .rb-tile-empty { font-size: 26px; font-weight: 400; }
+.rb-ref-add:hover .rb-tile-empty { color: var(--rb-fg); border-color: var(--rb-accent); }
+.rb-ref-name {
+  margin-top: 3px;
+  text-align: center;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rb-ref:hover .rb-x, .rb-ref:hover .rb-edit { display: block; }
+.rb-ref .rb-x { top: -5px; right: -5px; }
+.rb-ref .rb-edit { top: -5px; left: -5px; }
+.rb-ref-cover {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #ccc;
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+  display: none;
+}
+.rb-ref:hover .rb-ref-cover, .rb-ref-cover.rb-on { display: block; }
+.rb-ref-cover.rb-on { color: #f5c518; }
+
 /* ---- prompt editor: fills the rest of the window ---- */
 .rb-editor { flex: 1; min-height: 120px; display: flex; flex-direction: column; gap: 4px; }
 .rb-editor-tools { display: flex; align-items: center; gap: 6px; flex: none; }

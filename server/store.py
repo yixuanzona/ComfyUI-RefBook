@@ -16,7 +16,9 @@ SCHEMA = 1
 BACKUP_KEEP = 20
 DEFAULT_SECTIONS = ["Character", "Background", "Style"]
 IMAGE_FORMATS = {"PNG", "JPEG", "WEBP", "GIF", "BMP"}
-IMAGE_MAX_BYTES = 20 * 1024 * 1024
+IMAGE_MAX_BYTES = 20 * 1024 * 1024  # covers (re-encoded)
+REF_MAX_BYTES = 50 * 1024 * 1024  # reference images (originals kept)
+REF_EXTS = (".png", ".jpg", ".webp")
 IMAGE_FULL_EDGE = 1280
 IMAGE_THUMB_EDGE = 256
 
@@ -92,12 +94,15 @@ def normalize_project(data):
                     "text": _str(g.get("text", ""), "group.text"),
                     "inAll": bool(g.get("inAll", True)),
                 }))
+            refs = [_with_extras(r, {"id": check_id(r.get("id")), "name": _str(r.get("name", ""), "ref.name")})
+                    for r in e.get("refs") or []]
             cover = e.get("cover")
             entries.append(_with_extras(e, {
                 "id": check_id(e.get("id")),
                 "name": _str(e.get("name", ""), "entry.name"),
                 "cover": check_id(cover) if cover else None,
                 "groups": groups,
+                "refs": refs,
             }))
         sections.append(_with_extras(s, {
             "id": check_id(s.get("id")),
@@ -114,8 +119,15 @@ def normalize_project(data):
     })
 
 
-def covers_of(project):
-    return {e["cover"] for s in project["sections"] for e in s["entries"] if e.get("cover")}
+def images_of(project):
+    """Every image id a project uses: covers and reference images."""
+    ids = set()
+    for s in project["sections"]:
+        for e in s["entries"]:
+            if e.get("cover"):
+                ids.add(e["cover"])
+            ids.update(r["id"] for r in e.get("refs", []))
+    return ids
 
 
 def atomic_write_bytes(path, data):
@@ -168,7 +180,7 @@ class Vault:
     def copy_into(self, target_root):
         """Copy projects and images into another vault folder, never overwriting files already there."""
         copied = 0
-        for sub in ("projects", "images", "thumbs"):
+        for sub in ("projects", "images", "originals", "thumbs"):
             src = os.path.join(self.root, sub)
             if not os.path.isdir(src):
                 continue
@@ -240,11 +252,11 @@ class Vault:
         new["rev"] = max(cur_rev, int(base_rev)) + 1
         new["updatedAt"] = now_iso()
         self._backup(pid, path)
-        self._restore_images(covers_of(new))
+        self._restore_images(images_of(new))
         self._write_project(new, old_path=path)
         if old:
             self._trash_removed_items(old, new)
-            self._trash_orphan_images(covers_of(old) - covers_of(new))
+            self._trash_orphan_images(images_of(old) - images_of(new))
         return {"id": pid, "rev": new["rev"], "updatedAt": new["updatedAt"]}
 
     def delete_project(self, pid):
@@ -301,46 +313,63 @@ class Vault:
             atomic_write_bytes(os.path.join(tdir, f"{stamp}__{old['id']}__{item['id']}.json"), dump_json(snap))
 
     # ---------- images ----------
+    # covers:     images/<id>.webp     (re-encoded, long edge 1280)
+    # references: originals/<id>.png|.jpg|.webp (original pixels, embedded metadata stripped)
+    # both:       thumbs/<id>.webp     (256 px, rebuilt on demand)
 
-    def _image_paths(self, iid, trashed=False):
-        base = (self.root, ".trash") if trashed else (self.root,)
-        return os.path.join(*base, "images", f"{iid}.webp"), os.path.join(*base, "thumbs", f"{iid}.webp")
+    def _base(self, trashed):
+        return os.path.join(self.root, ".trash") if trashed else self.root
 
-    def _all_covers(self):
-        refs = set()
+    def _image_files(self, iid, trashed=False):
+        """All existing files (cover, original, thumb) for an image id."""
+        base = self._base(trashed)
+        candidates = [os.path.join(base, "images", f"{iid}.webp"), os.path.join(base, "thumbs", f"{iid}.webp")]
+        candidates += [os.path.join(base, "originals", iid + ext) for ext in REF_EXTS]
+        return [p for p in candidates if os.path.exists(p)]
+
+    def _source_path(self, iid):
+        """The full-size file for an image: the original if there is one, else the cover."""
+        for ext in REF_EXTS:
+            p = os.path.join(self.root, "originals", iid + ext)
+            if os.path.exists(p):
+                return p
+        p = os.path.join(self.root, "images", f"{iid}.webp")
+        return p if os.path.exists(p) else None
+
+    def _all_images(self):
+        ids = set()
         for pid, fn, _ in self._project_files():
             try:
-                refs |= covers_of(self._read(os.path.join(self.root, "projects", fn)))
+                ids |= images_of(self._read(os.path.join(self.root, "projects", fn)))
             except BrokenProject:
                 pass
-        return refs
+        return ids
+
+    def _move_image(self, iid, to_trash):
+        src_base, dst_base = self._base(not to_trash), self._base(to_trash)
+        for src in self._image_files(iid, trashed=not to_trash):
+            dst = os.path.join(dst_base, os.path.relpath(src, src_base))
+            if not os.path.exists(dst):
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.move(src, dst)
 
     def _trash_orphan_images(self, candidates):
         if not candidates:
             return
-        candidates = candidates - self._all_covers()
-        for iid in candidates:
-            for src, dst in zip(self._image_paths(iid), self._image_paths(iid, trashed=True)):
-                if os.path.exists(src):
-                    os.makedirs(os.path.dirname(dst), exist_ok=True)
-                    shutil.move(src, dst)
+        for iid in candidates - self._all_images():
+            self._move_image(iid, to_trash=True)
 
-    def _restore_images(self, covers):
+    def _restore_images(self, ids):
         """Undo may re-reference an image that was moved to trash: bring it back."""
-        for iid in covers:
-            full, thumb = self._image_paths(iid)
-            tfull, tthumb = self._image_paths(iid, trashed=True)
-            if not os.path.exists(full) and os.path.exists(tfull):
-                self._dir("images")
-                shutil.move(tfull, full)
-                if os.path.exists(tthumb) and not os.path.exists(thumb):
-                    self._dir("thumbs")
-                    shutil.move(tthumb, thumb)
+        for iid in ids:
+            if self._source_path(iid) is None and self._image_files(iid, trashed=True):
+                self._move_image(iid, to_trash=False)
 
-    def save_image(self, data):
-        from PIL import Image, ImageOps
-        if len(data) > IMAGE_MAX_BYTES:
-            raise VaultError("image larger than 20 MB")
+    @staticmethod
+    def _open(data, limit):
+        from PIL import Image
+        if len(data) > limit:
+            raise VaultError(f"image larger than {limit // (1024 * 1024)} MB")
         try:
             img = Image.open(io.BytesIO(data))
             fmt = img.format
@@ -349,42 +378,77 @@ class Vault:
             raise VaultError("not a readable image")
         if fmt not in IMAGE_FORMATS:
             raise VaultError(f"unsupported image format: {fmt}")
-        img = ImageOps.exif_transpose(img)
-        if img.mode in ("RGBA", "LA", "P"):
+        return img, fmt
+
+    @staticmethod
+    def _flatten(img):
+        """RGB copy with transparency composited on white (for webp covers / thumbs)."""
+        from PIL import Image
+        if img.mode in ("RGBA", "LA", "P", "PA"):
             img = img.convert("RGBA")
             bg = Image.new("RGB", img.size, (255, 255, 255))
             bg.paste(img, mask=img.getchannel("A"))
-            img = bg
-        img = img.convert("RGB")
+            return bg
+        return img.convert("RGB")
+
+    def save_image(self, data):
+        from PIL import Image, ImageOps
+        img, _ = self._open(data, IMAGE_MAX_BYTES)
+        img = self._flatten(ImageOps.exif_transpose(img))
         img.thumbnail((IMAGE_FULL_EDGE, IMAGE_FULL_EDGE), Image.LANCZOS)
         iid = new_id("i")
-        full, _ = self._image_paths(iid)
         self._dir("images")
         buf = io.BytesIO()
         img.save(buf, "WEBP", quality=90)
-        atomic_write_bytes(full, buf.getvalue())
+        atomic_write_bytes(os.path.join(self.root, "images", f"{iid}.webp"), buf.getvalue())
+        self._make_thumb(iid, img)
+        return iid
+
+    def save_ref(self, data):
+        """Keep the original pixels. PNG/WEBP are re-saved losslessly without metadata, so a ComfyUI output
+        doesn't carry its workflow along (and isn't opened as a workflow when dropped on the canvas).
+        JPEG is kept byte-for-byte to avoid a lossy re-encode."""
+        img, fmt = self._open(data, REF_MAX_BYTES)
+        iid = new_id("i")
+        self._dir("originals")
+        if fmt == "JPEG":
+            out, ext = data, ".jpg"
+        else:
+            buf = io.BytesIO()
+            icc = img.info.get("icc_profile")
+            if fmt == "WEBP":
+                img.save(buf, "WEBP", lossless=True, icc_profile=icc)
+                ext = ".webp"
+            else:  # PNG, GIF (first frame), BMP
+                if img.mode not in ("RGB", "RGBA", "L", "LA", "I", "I;16"):
+                    img = img.convert("RGBA")
+                img.save(buf, "PNG", icc_profile=icc)
+                ext = ".png"
+            out = buf.getvalue()
+        atomic_write_bytes(os.path.join(self.root, "originals", iid + ext), out)
         self._make_thumb(iid, img)
         return iid
 
     def _make_thumb(self, iid, img=None):
-        from PIL import Image
-        full, thumb = self._image_paths(iid)
+        from PIL import Image, ImageOps
         if img is None:
-            img = Image.open(full)
-        img = img.copy()
+            src = self._source_path(iid)
+            img = ImageOps.exif_transpose(Image.open(src))
+        img = self._flatten(img)
         img.thumbnail((IMAGE_THUMB_EDGE, IMAGE_THUMB_EDGE), Image.LANCZOS)
         self._dir("thumbs")
         buf = io.BytesIO()
-        img.convert("RGB").save(buf, "WEBP", quality=85)
-        atomic_write_bytes(thumb, buf.getvalue())
+        img.save(buf, "WEBP", quality=85)
+        atomic_write_bytes(os.path.join(self.root, "thumbs", f"{iid}.webp"), buf.getvalue())
 
     def image_path(self, iid, size="full"):
         check_id(iid)
-        full, thumb = self._image_paths(iid)
-        if not os.path.exists(full):
+        src = self._source_path(iid)
+        if src is None:
             raise NotFound(f"image {iid} not found")
         if size != "thumb":
-            return full
+            return src
+        thumb = os.path.join(self.root, "thumbs", f"{iid}.webp")
         if not os.path.exists(thumb):
             self._make_thumb(iid)
         return thumb

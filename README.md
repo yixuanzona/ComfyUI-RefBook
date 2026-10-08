@@ -40,6 +40,7 @@ Each row ends with **＋** to add something new. Hover over any name to see **�
 - **Edit in place.** Type straight into the prompt box. Everything saves automatically.
 - **Undo.** **Undo** steps back through your prompt edits. Deleted items can be restored with the **Undo** link at the bottom for 8 seconds.
 - **Large editor.** **⤢** opens a big window for long prompts.
+- **Reference images (Refs).** Each item has a 🖼 **Refs** tab with a gallery for character sheets, turnarounds, palettes or mood images. Originals are kept at full quality. **Drag an image onto the canvas** to load it into a Load Image node, or drop it on an existing Load Image to swap the picture. ★ makes an image the item's cover.
 - **Drag to reorder** sections, cards and groups. Drop a card on another section to move it.
 - **Safe storage.** Plain files, a backup before every save (last 20 kept), and a trash folder for deleted items.
 
@@ -50,7 +51,8 @@ The default group names for new items can be changed in **ComfyUI Settings → R
 ```
 ComfyUI/user/default/ref_book/
   projects/   one JSON file per project
-  images/     pictures
+  images/     cover pictures
+  originals/  reference images (full quality)
   thumbs/     small previews (rebuilt automatically)
   .backups/   automatic backups
   .trash/     deleted items
@@ -68,7 +70,6 @@ Tips: keep the NAS off the public internet, limit the share to your team, and tu
 
 ## Planned
 
-- Reference image gallery for each item, with drag-and-drop into workflows
 - Search across items and prompts
 - Export / import a project as a single file
 - A RefBook node that sends the selected prompt straight into your workflow

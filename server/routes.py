@@ -9,7 +9,7 @@ from aiohttp import web
 import folder_paths
 from server import PromptServer
 
-from .store import IMAGE_MAX_BYTES, Vault, VaultError, atomic_write_bytes, dump_json
+from .store import IMAGE_MAX_BYTES, REF_MAX_BYTES, Vault, VaultError, atomic_write_bytes, dump_json
 
 PREFIX = "/refbook/api"
 ENV_DIR = "REFBOOK_DIR"
@@ -155,18 +155,24 @@ async def restore(request):
 @routes.post(PREFIX + "/images")
 @handle_errors
 async def upload_image(request):
+    """Multipart: optional 'kind' ('cover' default, or 'ref' to keep the original), then 'image'."""
     reader = await request.multipart()
+    kind = "cover"
     field = await reader.next()
     while field is not None and field.name != "image":
+        if field.name == "kind":
+            kind = (await field.text()).strip()
         field = await reader.next()
     if field is None:
         raise VaultError("multipart field 'image' is required")
+    limit = REF_MAX_BYTES if kind == "ref" else IMAGE_MAX_BYTES
     data = bytearray()
     while chunk := await field.read_chunk(1 << 16):
         data += chunk
-        if len(data) > IMAGE_MAX_BYTES:
-            return err(413, "image larger than 20 MB")
-    iid = await asyncio.to_thread(vault().save_image, bytes(data))
+        if len(data) > limit:
+            return err(413, f"image larger than {limit // (1024 * 1024)} MB")
+    v = vault()
+    iid = await asyncio.to_thread(v.save_ref if kind == "ref" else v.save_image, bytes(data))
     return web.json_response({"imageId": iid})
 
 

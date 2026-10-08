@@ -13,6 +13,7 @@ const COPIED_MS = 1200;
 const HISTORY_IDLE_MS = 1000; // a pause this long starts a new Undo step
 const HISTORY_MAX = 100;
 const DND_TYPE = "application/x-refbook";
+const REF_DND = "application/x-refbook-ref"; // a reference image dragged out of the panel onto the canvas
 const DEFAULT_GROUPS_SETTING = "RefBook.DefaultGroups";
 // events that must not reach ComfyUI (canvas zoom, node shortcuts, paste-as-node, file-drop-as-workflow)
 const ISOLATED_EVENTS = ["keydown", "keyup", "keypress", "wheel", "pointerdown", "mousedown", "dblclick",
@@ -138,11 +139,17 @@ export class Panel {
       e.target.value = "";
       if (f) this.setCover(f, this.coverTarget);
     } });
-    this.root.append(this.fileInput);
+    this.refInput = h("input", { type: "file", accept: "image/*", multiple: true, style: "display:none", onchange: (e) => {
+      const files = [...e.target.files];
+      e.target.value = "";
+      if (files.length) this.addRefs(this.refTarget, files);
+    } });
+    this.root.append(this.fileInput, this.refInput);
 
     document.body.append(this.root);
     this.setupBarDrag();
     this.setupResize();
+    this.setupCanvasDrop();
     window.addEventListener("resize", () => this.applyLayout());
     window.addEventListener("pagehide", () => this.flush());
     document.addEventListener("visibilitychange", () => { if (document.hidden) this.flush(); });
@@ -253,10 +260,11 @@ export class Panel {
   onPaste(e) {
     const intoText = e.target.matches?.("textarea, input") && e.clipboardData?.types.includes("text/plain");
     const file = intoText ? null : imageFileFrom(e.clipboardData);
-    if (file && this.currentEntry()) {
-      e.preventDefault();
-      this.setCover(file);
-    }
+    const entry = this.currentEntry();
+    if (!file || !entry) return;
+    e.preventDefault();
+    if (this.sel.r) this.addRefs(entry.id, [file]); // in the Refs gallery a pasted image becomes a reference
+    else this.setCover(file);
   }
 
   // ================= status / undo =================
@@ -493,15 +501,17 @@ export class Panel {
     const s = p.sections.find((x) => x.id === this.sel.s) || p.sections[0];
     const e = s?.entries.find((x) => x.id === this.sel.e) || s?.entries[0];
     const g = e?.groups.find((x) => x.id === this.sel.g) || e?.groups[0];
-    this.sel = { s: s?.id || null, e: e?.id || null, g: g?.id || null };
+    // r: the Refs gallery is shown instead of a prompt; it stays open while switching items
+    this.sel = { s: s?.id || null, e: e?.id || null, g: g?.id || null, r: !!(this.sel.r && e) };
     this.prefs.sel[p.id] = this.sel;
     this.savePrefs();
   }
 
   choose(part, id) {
-    if (part === "s") this.sel = { s: id, e: null, g: null };
+    if (part === "s") this.sel = { s: id, e: null, g: null, r: this.sel.r };
     if (part === "e") this.sel = { ...this.sel, e: id, g: null };
-    if (part === "g") this.sel = { ...this.sel, g: id };
+    if (part === "g") this.sel = { ...this.sel, g: id, r: false };
+    if (part === "r") this.sel = { ...this.sel, r: true };
     this.fixSelection();
     this.render();
   }
@@ -751,6 +761,7 @@ export class Panel {
       for (const e of s.entries) {
         if (e.id === id) return e;
         for (const g of e.groups) if (g.id === id) return g;
+        for (const r of e.refs || []) if (r.id === id) return r;
       }
     }
     return null;
@@ -968,7 +979,7 @@ export class Panel {
     }
     this.groupRow.hidden = false;
     const tabs = e.groups.map((g) => {
-      const t = this.tab({ id: g.id, label: g.name, active: g.id === this.sel.g, kind: "group",
+      const t = this.tab({ id: g.id, label: g.name, active: !this.sel.r && g.id === this.sel.g, kind: "group",
         onClick: () => this.choose("g", g.id), onDelete: () => this.deleteGroup(e, g) });
       this.bindDrop(t, (d) => d.kind === "group" && d.id !== g.id, "sort", (d, pos) => {
         const from = e.groups.findIndex((x) => x.id === d.id);
@@ -976,7 +987,12 @@ export class Panel {
       });
       return t;
     });
-    this.groupRow.replaceChildren(...tabs, this.addTab("Add prompt group", () => this.addGroup(e)));
+    // Refs stays pinned at the right end, after any number of prompt groups
+    const refsTab = h("button", { class: "rb-tab rb-refs-tab" + (this.sel.r ? " rb-active" : ""),
+      title: "Reference images", onclick: () => this.choose("r") },
+      h("span", { text: "🖼 Refs" }), h("span", { class: "rb-refs-count", text: String((e.refs || []).length) }));
+    this.groupRow.replaceChildren(...tabs, this.addTab("Add prompt group", () => this.addGroup(e)),
+      h("div", { class: "rb-flex" }), refsTab);
   }
 
   renderEditor() {
@@ -993,6 +1009,11 @@ export class Panel {
         h("button", { class: "rb-big-btn", text: "Create your first project", onclick: () => this.createProject() })));
       return;
     }
+    const entry = this.currentEntry();
+    if (entry && this.sel.r) {
+      this.renderRefs(entry);
+      return;
+    }
     const g = this.currentGroup();
     if (!g) {
       const hint = !this.currentSection() ? "Click ＋ to add a section" : !this.currentEntry() ? "Click ＋ to add an item" : "Click ＋ to add a prompt group";
@@ -1002,6 +1023,141 @@ export class Panel {
     const expandBtn = h("button", { class: "rb-tool-btn rb-icon-only", title: "Open in a large editor", html: ICON_EXPAND,
       onclick: () => this.openPromptViewer(g) });
     ed.replaceChildren(...this.promptEditor(g, [expandBtn]));
+  }
+
+  // ================= reference images (Refs) =================
+
+  renderRefs(entry) {
+    entry.refs ||= [];
+    const grid = h("div", { class: "rb-refs" });
+    for (const r of entry.refs) {
+      const isCover = entry.cover === r.id;
+      const tile = h("div", { class: "rb-ref", draggable: "true", title: "Click to enlarge · drag onto the canvas to use it",
+        onclick: () => this.openLightbox(API.imageUrl(r.id, "full")),
+        ondragstart: (e) => {
+          this.dragStart(e, "ref", r.id);
+          e.dataTransfer.effectAllowed = "copyMove";
+          e.dataTransfer.setData(REF_DND, JSON.stringify({ id: r.id, name: r.name, entry: entry.name }));
+        },
+        ondragend: () => this.dragEnd(),
+      },
+        h("div", { class: "rb-ref-box" },
+          h("img", { class: "rb-ref-img", loading: "lazy", draggable: "false", src: API.imageUrl(r.id, "thumb") }),
+          ...this.badges(r.id, () => this.deleteRef(entry, r)),
+          h("button", { class: "rb-ref-cover" + (isCover ? " rb-on" : ""), text: "★",
+            title: isCover ? "This image is the item's cover" : "Use as the item's cover",
+            onclick: (e) => { e.stopPropagation(); entry.cover = r.id; this.scheduleSave(0); this.render(); } })),
+        h("div", { class: "rb-ref-name", dataset: { nameOf: r.id }, text: r.name, title: "Double-click or ✎ to rename",
+          ondblclick: (e) => { e.stopPropagation(); this.startRename(r.id); } }),
+      );
+      this.bindDrop(tile, (d) => d.kind === "ref" && d.id !== r.id, "sort", (d, pos) => {
+        const from = entry.refs.findIndex((x) => x.id === d.id);
+        if (from >= 0) moveInArrays(entry.refs, from, entry.refs, entry.refs.indexOf(r) + (pos === "after" ? 1 : 0));
+      });
+      grid.append(tile);
+    }
+    grid.append(h("div", { class: "rb-ref rb-ref-add", title: "Add reference images (or drag & drop / Ctrl+V)",
+      onclick: () => { this.refTarget = entry.id; this.refInput.click(); } },
+      h("div", { class: "rb-ref-box" }, h("div", { class: "rb-ref-img rb-tile-empty", text: "＋" })),
+      h("div", { class: "rb-ref-name", text: "Add" })));
+    // image files dropped from the desktop are added as references
+    grid.addEventListener("dragover", (e) => {
+      if (this.drag) return;
+      e.preventDefault();
+      grid.classList.add("rb-drop-into");
+    });
+    grid.addEventListener("dragleave", (e) => { if (!grid.contains(e.relatedTarget)) grid.classList.remove("rb-drop-into"); });
+    grid.addEventListener("drop", (e) => {
+      grid.classList.remove("rb-drop-into");
+      if (this.drag) return;
+      const files = [...(e.dataTransfer?.files || [])].filter((f) => f.type.startsWith("image/"));
+      if (files.length) { e.preventDefault(); this.addRefs(entry.id, files); }
+    });
+    this.editor.replaceChildren(
+      h("div", { class: "rb-editor-tools" },
+        h("span", { class: "rb-count", text: `${entry.refs.length} image${entry.refs.length === 1 ? "" : "s"}` }),
+        h("div", { class: "rb-flex" }),
+        h("span", { class: "rb-count", text: "Drag an image onto the canvas to load it" })),
+      grid);
+  }
+
+  async addRefs(entryId, files) {
+    const entry = this.findEntry(entryId)?.entry;
+    if (!entry) return;
+    entry.refs ||= [];
+    let done = 0;
+    for (const file of files) {
+      this.setStatus(`Uploading ${done + 1} / ${files.length}…`);
+      try {
+        const id = await API.uploadImage(file, "ref");
+        entry.refs.push({ id, name: (file.name || "").replace(/\.[^.]+$/, "") || `Ref ${entry.refs.length + 1}` });
+        done++;
+      } catch (err) {
+        this.setStatus(`Could not upload ${file.name || "image"}: ${err.message}`, "error");
+      }
+    }
+    if (!done) return;
+    if (!entry.cover) entry.cover = entry.refs[0].id; // first reference doubles as the cover
+    this.scheduleSave(0);
+    this.render();
+    this.setStatus(`Added ${done} image${done === 1 ? "" : "s"}`);
+  }
+
+  deleteRef(entry, r) {
+    const index = entry.refs.indexOf(r);
+    entry.refs.splice(index, 1);
+    this.afterDelete(`Deleted "${r.name}"`, () => {
+      entry.refs.splice(Math.min(index, entry.refs.length), 0, r);
+    });
+  }
+
+  // dropping a reference image on the canvas loads it into a Load Image node (the one under the cursor, or a new one)
+  setupCanvasDrop() {
+    const isRefDrop = (e) => e.dataTransfer?.types.includes(REF_DND) && !this.root.contains(e.target)
+      && (e.target.closest?.("#graph-canvas-container") || e.target.tagName === "CANVAS");
+    window.addEventListener("dragover", (e) => {
+      if (!isRefDrop(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    }, true);
+    window.addEventListener("drop", (e) => {
+      if (!isRefDrop(e)) return;
+      e.preventDefault(); // ComfyUI's own drop handler skips events that are already handled
+      e.stopPropagation();
+      this.dropRefOnCanvas(e, JSON.parse(e.dataTransfer.getData(REF_DND)));
+    }, true);
+  }
+
+  async dropRefOnCanvas(e, ref) {
+    const canvas = this.app.canvas;
+    const graph = canvas.graph || this.app.graph; // the graph being viewed (may be a subgraph)
+    canvas.adjustMouseEvent(e);
+    const pos = [e.canvasX, e.canvasY];
+    try {
+      this.setStatus(`Loading "${ref.name}" into the workflow…`);
+      const blob = await (await fetch(API.imageUrl(ref.id, "full"))).blob();
+      const ext = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" }[blob.type] || "png";
+      const slug = (s) => String(s || "").replace(/[^\w-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "ref";
+      const name = await API.uploadToComfyInput(blob, `refbook_${slug(ref.entry)}_${slug(ref.name)}_${ref.id}.${ext}`);
+      // hit-test from pos/size directly (title bar included) rather than the render-time bounding box
+      const titleH = window.LiteGraph.NODE_TITLE_HEIGHT || 30;
+      let node = [...(graph._nodes || graph.nodes || [])].reverse().find((n) => n.type === "LoadImage"
+        && pos[0] >= n.pos[0] && pos[0] <= n.pos[0] + n.size[0]
+        && pos[1] >= n.pos[1] - titleH && pos[1] <= n.pos[1] + n.size[1]);
+      if (!node) {
+        node = window.LiteGraph.createNode("LoadImage");
+        node.pos = pos;
+        graph.add(node);
+      }
+      const w = node.widgets?.find((x) => x.name === "image");
+      if (Array.isArray(w?.options?.values) && !w.options.values.includes(name)) w.options.values.push(name);
+      w.value = name;
+      w.callback?.(name);
+      graph.setDirtyCanvas?.(true, true);
+      this.setStatus(`Loaded "${ref.name}" into Load Image`);
+    } catch (err) {
+      this.setStatus("Could not add the image to the workflow: " + err.message, "error");
+    }
   }
 
   // toolbar (char count, Undo, Copy, extras) + textarea for one group; used inline and in the large editor
