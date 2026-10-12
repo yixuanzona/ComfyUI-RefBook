@@ -21,6 +21,7 @@ REF_MAX_BYTES = 50 * 1024 * 1024  # reference images (originals kept)
 REF_EXTS = (".png", ".jpg", ".webp")
 IMAGE_FULL_EDGE = 1280
 IMAGE_THUMB_EDGE = 256
+IMAGE_MEDIUM_EDGE = 1024
 
 
 class VaultError(Exception):
@@ -358,7 +359,8 @@ class Vault:
     def _image_files(self, iid, trashed=False):
         """All existing files (cover, original, thumb) for an image id."""
         base = self._base(trashed)
-        candidates = [os.path.join(base, "images", f"{iid}.webp"), os.path.join(base, "thumbs", f"{iid}.webp")]
+        candidates = [os.path.join(base, "images", f"{iid}.webp"), os.path.join(base, "thumbs", f"{iid}.webp"),
+                      os.path.join(base, "thumbs", f"{iid}_m.webp")]
         candidates += [os.path.join(base, "originals", iid + ext) for ext in REF_EXTS]
         return [p for p in candidates if os.path.exists(p)]
 
@@ -464,26 +466,38 @@ class Vault:
         self._make_thumb(iid, img)
         return iid
 
-    def _make_thumb(self, iid, img=None):
+    def _make_thumb(self, iid, img=None, edge=IMAGE_THUMB_EDGE, suffix=""):
         from PIL import Image, ImageOps
         if img is None:
             src = self._source_path(iid)
             img = ImageOps.exif_transpose(Image.open(src))
         img = self._flatten(img)
-        img.thumbnail((IMAGE_THUMB_EDGE, IMAGE_THUMB_EDGE), Image.LANCZOS)
+        img.thumbnail((edge, edge), Image.LANCZOS)
         self._dir("thumbs")
         buf = io.BytesIO()
         img.save(buf, "WEBP", quality=85)
-        atomic_write_bytes(os.path.join(self.root, "thumbs", f"{iid}.webp"), buf.getvalue())
+        atomic_write_bytes(os.path.join(self.root, "thumbs", f"{iid}{suffix}.webp"), buf.getvalue())
+
+    def image_info(self, iid):
+        """Pixel size of the full image (reads only the header)."""
+        from PIL import Image
+        src = self.image_path(iid)
+        with Image.open(src) as img:
+            w, h = img.size
+            if (img.getexif() or {}).get(0x0112) in (5, 6, 7, 8):  # EXIF-rotated by 90°
+                w, h = h, w
+        return {"width": w, "height": h}
 
     def image_path(self, iid, size="full"):
         check_id(iid)
         src = self._source_path(iid)
         if src is None:
             raise NotFound(f"image {iid} not found")
-        if size != "thumb":
+        if size not in ("thumb", "medium"):
             return src
-        thumb = os.path.join(self.root, "thumbs", f"{iid}.webp")
-        if not os.path.exists(thumb):
-            self._make_thumb(iid)
-        return thumb
+        # thumb: 256 px for lists; medium: 1024 px for node previews (light enough to draw on the canvas)
+        edge, suffix = (IMAGE_THUMB_EDGE, "") if size == "thumb" else (IMAGE_MEDIUM_EDGE, "_m")
+        path = os.path.join(self.root, "thumbs", f"{iid}{suffix}.webp")
+        if not os.path.exists(path):
+            self._make_thumb(iid, edge=edge, suffix=suffix)
+        return path

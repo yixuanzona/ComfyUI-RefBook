@@ -180,6 +180,8 @@ async def upload_image(request):
 @handle_errors
 async def get_image(request):
     size = request.query.get("size", "full")
+    if size == "info":  # {width, height} of the full image
+        return web.json_response(await asyncio.to_thread(vault().image_info, request.match_info["id"]))
     path = await asyncio.to_thread(vault().image_path, request.match_info["id"], size)
     # image ids are never reused, so the files are immutable
     return web.FileResponse(path, headers={"Cache-Control": "public, max-age=31536000, immutable"})

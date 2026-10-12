@@ -41,12 +41,17 @@ export function setupRefBookNode(nodeType, nodeData, panelGetter) {
 
 function initNode(node, kind) {
   node.__rbKind = kind;
-  for (const name of ["ref", "snapshot"]) {
-    const w = widget(node, name);
-    if (!w) continue;
-    w.hidden = true; // stored data, not something to edit by hand
-    w.computeSize = () => [0, -4];
-    if (w.element) w.element.style.display = "none"; // multiline DOM widget
+  const ref = widget(node, "ref");
+  if (ref) {
+    ref.hidden = true; // stored data, not something to edit by hand
+    ref.computeSize = () => [0, -4];
+  }
+  // RefBook Prompt: the stored fallback text doubles as a read-only preview of the current prompt
+  const snap = widget(node, "snapshot");
+  if (snap?.element) {
+    snap.element.readOnly = true;
+    snap.element.placeholder = "The prompt appears here after you pick a group. Edit it in the RefBook panel.";
+    snap.element.classList.add("rb-node-preview");
   }
   node.__rbPick = node.addWidget("button", "pick", null, () => openPicker(node));
   node.__rbPick.serialize = false;
@@ -56,6 +61,21 @@ function initNode(node, kind) {
     else alertNode(node, kind === "g" ? "Select a prompt group in the RefBook panel first." : "Select an item with reference images in the RefBook panel first.");
   });
   useSel.serialize = false;
+  if (kind === "r") {
+    // own preview element instead of node.imgs: ComfyUI captions node.imgs with the *preview's* pixel size,
+    // which would contradict the original size the node actually outputs
+    const img = h("img", { class: "rb-node-img", draggable: "false" });
+    const caption = h("div", { class: "rb-node-img-caption" });
+    const box = h("div", { class: "rb-node-preview-box" }, img, caption);
+    node.__rbPreview = { box, img, caption, height: 0 };
+    const preview = node.addDOMWidget("preview", "rb-preview", box, {
+      serialize: false,
+      hideOnZoom: false,
+      getMinHeight: () => node.__rbPreview.height,
+      getMaxHeight: () => (node.__rbPreview.height ? 4000 : 0),
+    });
+    if (preview) preview.serialize = false; // display only, nothing to store in the workflow
+  }
   refresh(node);
 }
 
@@ -70,56 +90,92 @@ export async function setNodeLink(node, link) {
   const w = widget(node, "ref");
   if (!w || !link) return;
   w.value = JSON.stringify(link);
-  if (link.g) {
-    try { // fill the fallback text right away, so the workflow carries it even before the first run
-      const p = await API.getProject(link.p);
-      const g = p.sections.flatMap((s) => s.entries).find((e) => e.id === link.e)?.groups.find((x) => x.id === link.g);
-      const snap = widget(node, "snapshot");
-      if (g && snap) snap.value = g.text;
-    } catch {}
-  }
-  refresh(node);
+  await refresh(node);
 }
 
-// re-read labels / previews of every RefBook node on the canvas (e.g. after a reference was replaced)
+// add a RefBook Image node linked to a reference, in the middle of the visible canvas
+export function addLinkedImageNode(app, link) {
+  const canvas = app.canvas;
+  const graph = canvas.graph || app.graph;
+  const rect = canvas.canvas.getBoundingClientRect();
+  const { scale, offset } = canvas.ds;
+  const node = window.LiteGraph.createNode("RefBookImage");
+  node.pos = [rect.width / 2 / scale - offset[0] - 130, rect.height / 2 / scale - offset[1] - 150];
+  graph.add(node);
+  canvas.selectNode?.(node);
+  setNodeLink(node, link);
+  return node;
+}
+
+// re-read labels / previews / prompt text of every RefBook node on the canvas (after edits in the panel)
 export function refreshRefBookNodes(graph) {
+  projectCache.clear();
   for (const node of graph?._nodes || graph?.nodes || []) if (node.__rbKind) refresh(node);
+}
+
+// several nodes refreshing at once share one request per project
+const projectCache = new Map();
+function getProject(id) {
+  if (!projectCache.has(id)) {
+    projectCache.set(id, API.getProject(id));
+    setTimeout(() => projectCache.delete(id), 2000);
+  }
+  return projectCache.get(id);
+}
+
+async function lookup(link) {
+  const p = await getProject(link.p);
+  const entry = p.sections.flatMap((s) => s.entries).find((e) => e.id === link.e);
+  return link.g ? entry?.groups.find((x) => x.id === link.g) : (entry?.refs || []).find((x) => x.id === link.r);
 }
 
 async function refresh(node) {
   const btn = node.__rbPick;
   if (!btn) return;
   const link = parseLink(node);
-  const label = link?.path ? `🔗 ${link.path[2]} › ${link.path[3] || "(unnamed)"}` : "Pick from RefBook…";
+  let item = null;
+  if (link) {
+    try { item = await lookup(link); } catch {}
+  }
+  let label = link?.path ? `🔗 ${link.path[2]} › ${item?.name || link.path[3] || "(unnamed)"}` : "Pick from RefBook…";
+  if (node.__rbKind === "g") {
+    const snap = widget(node, "snapshot");
+    if (item && snap && snap.value !== item.text) snap.value = item.text; // also the fallback if RefBook is unreachable later
+  } else {
+    await showPreview(node, item);
+  }
+  if (link && !item) label = `⚠ ${label.slice(2)} (not found)`;
   btn.label = label;
   btn.name = label; // older frontends draw the name
   fitSize(node);
-  if (node.__rbKind === "r") await showPreview(node, link);
 }
 
-const PREVIEW_H = 220;
-
-// height = visible widgets (+ room for the preview image); the hidden stored-data widgets take no space
+// node height = its widgets (the preview widget reports its own height)
 function fitSize(node) {
   const [w, h] = node.computeSize();
-  node.setSize?.([Math.max(260, w, node.size[0]), h + (node.imgs?.length ? PREVIEW_H : 0)]);
+  node.setSize?.([Math.max(260, w, node.size[0]), h]);
   node.graph?.setDirtyCanvas?.(true, true);
 }
 
-async function showPreview(node, link) {
-  node.imgs = undefined;
-  if (!link?.r) return;
-  try {
-    const p = await API.getProject(link.p);
-    const r = p.sections.flatMap((s) => s.entries).flatMap((e) => e.refs || []).find((x) => x.id === link.r);
-    if (!r) return;
-    const img = new Image();
-    img.onload = () => {
-      node.imgs = [img];
-      fitSize(node);
-    };
-    img.src = API.imageUrl(r.image, "thumb");
-  } catch {}
+// medium-size preview (1024 px): sharp on the canvas without loading a multi-MB original.
+// The caption shows the original's size, which is what the node outputs.
+async function showPreview(node, r) {
+  const pv = node.__rbPreview;
+  if (!pv) return;
+  if (!r) {
+    pv.height = 0;
+    pv.box.style.display = "none";
+    return;
+  }
+  const loaded = new Promise((resolve) => { pv.img.onload = resolve; pv.img.onerror = resolve; });
+  pv.img.src = API.imageUrl(r.image, "medium");
+  let size = null;
+  try { size = await (await fetch(API.imageUrl(r.image, "info"))).json(); } catch {}
+  await loaded;
+  const ratio = pv.img.naturalWidth ? pv.img.naturalHeight / pv.img.naturalWidth : 1;
+  pv.height = Math.round(Math.min(420, Math.max(120, (Math.max(260, node.size[0]) - 20) * ratio))) + 18;
+  pv.caption.textContent = size ? `Original ${size.width} × ${size.height}` : "";
+  pv.box.style.display = "";
 }
 
 // ---------- picker: projects › sections › items › groups / reference images ----------

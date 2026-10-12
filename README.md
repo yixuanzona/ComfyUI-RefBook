@@ -50,10 +50,10 @@ The default group names for new items can be changed in **ComfyUI Settings → R
 
 Copy and drag-to-canvas give you a fixed copy. To have a workflow follow RefBook instead, use the nodes (category **RefBook**):
 
-- **RefBook Prompt** outputs the text of a prompt group, for example into CLIP Text Encode.
-- **RefBook Image** outputs a reference image (IMAGE + MASK), for example into IPAdapter, Redux, ControlNet or an edit model.
+- **RefBook Prompt** outputs the text of a prompt group, for example into CLIP Text Encode. The node shows the current text.
+- **RefBook Image** outputs a reference image (IMAGE + MASK) at full size, for example into IPAdapter, Redux, ControlNet or an edit model. The node shows a preview and the original size.
 
-Click **Pick from RefBook…** on the node, or **Use panel selection** to take what is selected in the panel. You can also hold **Alt** while dragging a reference onto the canvas to create a linked RefBook Image node, or drop a reference onto an existing one.
+Click **Pick from RefBook…** on the node, or **Use panel selection** to take what is selected in the panel. In the Refs gallery, **🔗** adds a linked RefBook Image node to the canvas (or hold **Alt** while dragging a reference onto the canvas). Dropping a reference onto an existing RefBook Image node relinks it.
 
 Every run reads RefBook again, so when someone edits a prompt or replaces an image (↻), the next run uses the new version. If the item can't be found (for example the shared folder isn't reachable), the node uses the last version it loaded and shows a warning in the console instead of stopping the workflow.
 

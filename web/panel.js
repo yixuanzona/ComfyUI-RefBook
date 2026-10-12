@@ -1,7 +1,7 @@
 // RefBook floating panel: plain DOM, no framework. All classes are prefixed with rb-.
 // Layout (single column): bar (project) -> section tabs -> entry tiles -> group tabs -> big prompt box.
 import * as API from "./api.js";
-import { refreshRefBookNodes, setNodeLink } from "./nodeUi.js";
+import { addLinkedImageNode, refreshRefBookNodes, setNodeLink } from "./nodeUi.js";
 
 // ---- constants (change here) ----
 export const HOTKEY = { key: "p", macKey: "π", code: "KeyP", alt: true }; // Alt+P
@@ -358,6 +358,7 @@ export class Panel {
         if (listed) Object.assign(listed, { name: p.name, rev: p.rev, updatedAt: p.updatedAt });
         // keep a "Deleted [Undo]" message visible instead of replacing it with the save time
         if (this.project === p && !this.statusActions.childElementCount) this.setStatus(`Saved ${hhmm()}`);
+        refreshRefBookNodes(this.app.canvas?.graph || this.app.graph); // prompt previews / labels on the canvas
       } catch (err) {
         if (this.project === p) this.dirty = true;
         if (err.status === 409 && this.project === p) this.showConflict(err.body?.rev);
@@ -433,6 +434,7 @@ export class Panel {
       if (document.querySelector(".rb-overlay") || (this.root.contains(active) && active.matches("textarea, input"))) return;
       await this.openProject(p.id);
       this.setStatus(`Updated from another computer ${hhmm()}`);
+      refreshRefBookNodes(this.app.canvas?.graph || this.app.graph);
     } catch {
       // offline NAS etc.: try again next time
     } finally {
@@ -1044,7 +1046,7 @@ export class Panel {
         onclick: () => this.openLightbox(API.imageUrl(r.image, "full")),
         ondragstart: (e) => {
           this.dragStart(e, "ref", r.id);
-          e.dataTransfer.effectAllowed = "copyMove";
+          e.dataTransfer.effectAllowed = "all"; // copy (Load Image), link (Alt: RefBook Image), move (reorder)
           e.dataTransfer.setData(REF_DND, JSON.stringify({ image: r.image, name: r.name, entry: entry.name, link: this.linkFor(entry, r) }));
         },
         ondragend: () => this.dragEnd(),
@@ -1055,8 +1057,15 @@ export class Panel {
           h("button", { class: "rb-ref-cover" + (isCover ? " rb-on" : ""), text: "★",
             title: isCover ? "This image is the item's cover" : "Use as the item's cover",
             onclick: (e) => { e.stopPropagation(); entry.cover = r.image; this.scheduleSave(0); this.render(); } }),
-          h("button", { class: "rb-ref-replace", text: "↻", title: "Replace with a new version (linked nodes update)",
-            onclick: (e) => { e.stopPropagation(); this.replaceTarget = { entryId: entry.id, refId: r.id }; this.replaceInput.click(); } })),
+          h("div", { class: "rb-ref-actions" },
+            h("button", { class: "rb-ref-btn", text: "🔗", title: "Add a linked RefBook Image node to the canvas",
+              onclick: (e) => {
+                e.stopPropagation();
+                addLinkedImageNode(this.app, this.linkFor(entry, r));
+                this.setStatus(`Added a RefBook Image node for "${r.name}"`);
+              } }),
+            h("button", { class: "rb-ref-btn", text: "↻", title: "Replace with a new version (linked nodes update)",
+              onclick: (e) => { e.stopPropagation(); this.replaceTarget = { entryId: entry.id, refId: r.id }; this.replaceInput.click(); } }))),
         h("div", { class: "rb-ref-name", dataset: { nameOf: r.id }, text: r.name, title: "Double-click or ✎ to rename",
           ondblclick: (e) => { e.stopPropagation(); this.startRename(r.id); } }),
       );
