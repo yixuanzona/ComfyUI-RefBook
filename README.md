@@ -1,8 +1,8 @@
 # ComfyUI-RefBook
 
-A small floating panel in ComfyUI that keeps your project's characters, backgrounds and styles in one place. Each one has a picture and its prompts, ready to copy.
+A small floating panel in ComfyUI that keeps your project's characters, backgrounds and styles in one place. Each one has a picture, its prompts and its reference images, ready to copy, drag onto the canvas or link into a workflow.
 
-![RefBook panel](docs/screenshot.jpg)
+![The RefBook panel floating over a workflow](docs/images/panel.png)
 
 ## Use cases
 
@@ -40,11 +40,22 @@ Each row ends with **＋** to add something new. Hover over any name to see **�
 - **Edit in place.** Type straight into the prompt box. Everything saves automatically.
 - **Undo.** **Undo** steps back through your prompt edits. Deleted items can be restored with the **Undo** link at the bottom for 8 seconds.
 - **Large editor.** **⤢** opens a big window for long prompts.
-- **Reference images (Refs).** Each item has a 🖼 **Refs** tab with a gallery for character sheets, turnarounds, palettes or mood images. Originals are kept at full quality. **Drag an image onto the canvas** to load a copy into a Load Image node (or drop it on an existing Load Image to swap the picture). ↻ replaces an image with a new version; ★ makes it the item's cover.
 - **Drag to reorder** sections, cards and groups. Drop a card on another section to move it.
 - **Safe storage.** Plain files, a backup before every save (last 20 kept), and a trash folder for deleted items.
 
 The default group names for new items can be changed in **ComfyUI Settings → RefBook**.
+
+## Reference images (Refs)
+
+Each item has a 🖼 **Refs** tab at the end of its group row. It opens a gallery for character sheets, turnarounds, palettes or mood images. Originals are kept at full quality.
+
+![The Refs gallery of a character](docs/images/refs.png)
+
+- **Drag an image onto the canvas** to load a copy into a Load Image node, or drop it on an existing Load Image to swap the picture.
+- **↻** replaces an image with a new version, keeping its place and name.
+- **★** makes it the item's cover.
+
+![Dragging a reference onto the canvas](docs/images/drag-to-canvas.gif)
 
 ## Nodes: always use the latest version
 
@@ -52,6 +63,8 @@ Copy and drag-to-canvas give you a fixed copy. To have a workflow follow RefBook
 
 - **RefBook Prompt** outputs the text of a prompt group, for example into CLIP Text Encode. The node shows the current text.
 - **RefBook Image** outputs a reference image (IMAGE + MASK) at full size, for example into IPAdapter, Redux, ControlNet or an edit model. The node shows a preview and the original size.
+
+![RefBook Prompt and RefBook Image nodes in a workflow](docs/images/nodes.png)
 
 Click **Pick from RefBook…** on the node, or **Use panel selection** to take what is selected in the panel. In the Refs gallery, **🔗** adds a linked RefBook Image node to the canvas (or hold **Alt** while dragging a reference onto the canvas). Dropping a reference onto an existing RefBook Image node relinks it.
 

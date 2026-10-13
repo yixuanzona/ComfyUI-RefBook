@@ -89,6 +89,19 @@ python_embeded\python.exe -s ComfyUI\main.py --port 8199 --cpu ^
 - Python changes need a ComfyUI restart; `web/` changes only need a page reload.
 - In a hidden browser pane `document.hidden` is true, and the panel skips polling then (by design).
 
+## README images
+
+The README already links these files in `docs/images/`; they still need to be made. Don't push the README until they exist, or GitHub shows broken images. Use a demo project (no unreleased IP) and set the ComfyUI interface language to English.
+
+| File | Shows | Notes |
+|---|---|---|
+| `panel.png` | Panel open over a simple workflow: project name, sections, item cards with real cover pictures, a prompt group selected | Top of the README. About 1600 px wide |
+| `refs.png` | Refs tab open on one character: 4–6 references (sheet, turnaround, palette…) | Can be cropped to the panel |
+| `drag-to-canvas.gif` | Drag a reference from the gallery onto the canvas → a Load Image node appears | 5–8 s, about 800–1000 px wide, aim for under 5 MB |
+| `nodes.png` | RefBook Prompt → CLIP Text Encode and RefBook Image → an image input, with the prompt preview and image preview visible | |
+
+`docs/screenshot.jpg` (old, Chinese UI, placeholder covers) is no longer used by the README and can be removed once the new images are in.
+
 ## Release flow used so far
 
 1. Work on a branch (a git worktree keeps the live install untouched).
@@ -102,6 +115,6 @@ Done and on `main`: panel, NAS data folder with conflict handling, Refs gallery,
 
 Next:
 - **Publish to ComfyUI Manager** via the Comfy Registry: add `pyproject.toml` (`[project]` name `comfyui-refbook`, version, description, license MIT, `[project.urls]` Repository; `[tool.comfy]` PublisherId, DisplayName). Waiting for the owner's Publisher ID. Optional: a GitHub Action that publishes on version tags.
-- README polish and example images (screenshots / a GIF of dragging a reference onto the canvas), done by the owner. Use a demo project, not unreleased IP.
+- README example images: the layout and links are in place; the image files still need to be made (see [README images](#readme-images)).
 - Planned features: search across items and prompts; export / import a project as one file.
 - Old test branches (`phase2-nas`, `refs-gallery`, `refbook-nodes`) are fully merged and can be deleted once nobody is on them.
