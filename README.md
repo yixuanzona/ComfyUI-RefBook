@@ -1,17 +1,18 @@
 # ComfyUI-RefBook
 
-A small floating panel in ComfyUI that keeps your project's characters, backgrounds and styles in one place. Each one has a picture, its prompts and its reference images, ready to copy, drag onto the canvas or link into a workflow.
+**A floating reference book for your ComfyUI projects.** Every character, prop, background, style, reference image and prompt of a project lives in one panel that floats freely over the canvas. Move it anywhere, resize it, or collapse it to a small bar when you need the space, then open it again with one click or **Alt+P**.
+
+RefBook is a panel, not a node, so it stays on screen whichever workflow you open, and typing or scrolling in it never affects the canvas.
 
 ![The RefBook panel floating over a workflow](docs/images/panel.png)
 
 ## Use cases
 
-- **Long-running IP projects.** Keep each character's look, signature poses, recurring backgrounds and art style in one place, and reuse them across every workflow.
+- **A reference book for every project.** Build a dedicated book for each IP or client: characters, props, backgrounds, styles, reference images and prompts, all in one place that is easy to read and quick to search through, instead of scattered across old workflows and folders.
+- **Team work.** Put the book in a shared NAS folder and the whole team works from the same references. Changes show up on every computer within seconds, so nobody generates with an outdated prompt or picture. See [Share between computers](#share-between-computers-nas).
 - **LoRA training.** Keep caption and trigger prompts consistent for every character.
 - **Asset production.** Generate sprites, illustrations or variations with the same base prompt every time.
 - **Story scenes.** Combine a character, a background and a style for each scene without hunting through old workflows.
-
-Prompt nodes live inside a single workflow and are gone when you switch workflows. RefBook stays on screen whichever workflow is open.
 
 ## Install
 
@@ -25,50 +26,57 @@ Restart ComfyUI. No extra Python packages are needed.
 ## How to use
 
 1. Click the **RB** bar at the top right (or press **Alt+P**) to open the panel. Click the bar again to collapse it. Drag the bar to move it.
-2. Pick a **section** (Character / Background / Style).
+2. Pick a **section**, for example Character, Background or Style.
 3. Pick an **item** from the row of pictures, for example a character.
-4. Pick a **prompt group** (Features / Action) and its prompt shows in the big box.
+4. Pick a **prompt group**, for example Features or Action, and its prompt shows in the big box.
 5. Click **Copy** and paste the prompt into your workflow.
 
-Each row ends with **＋** to add something new. Hover over any name to see **✎** (rename) and **✕** (delete).
+Sections, items and prompt groups are all yours to define: add, rename, reorder or delete them to fit your project. Each row ends with **＋** to add something new; hover over any name to see **✎** (rename) and **✕** (delete). The groups a new item starts with (Features, Action by default) can be changed in **ComfyUI Settings → RefBook**.
 
 ## Features
 
-- **Always on screen.** A floating panel, not a node, so it never gets lost in a workflow. Typing or scrolling in the panel never affects the canvas.
-- **Projects.** One project per IP. Duplicate a project to keep separate stages, such as "Project" and "Project · Final".
-- **Pictures.** Drag an image onto a card, paste it with **Ctrl+V**, or click 🖼. Click the selected card to view it full size.
-- **Edit in place.** Type straight into the prompt box. Everything saves automatically.
-- **Undo.** **Undo** steps back through your prompt edits. Deleted items can be restored with the **Undo** link at the bottom for 8 seconds.
-- **Large editor.** **⤢** opens a big window for long prompts.
-- **Drag to reorder** sections, cards and groups. Drop a card on another section to move it.
-- **Safe storage.** Plain files, a backup before every save (last 20 kept), and a trash folder for deleted items.
-
-The default group names for new items can be changed in **ComfyUI Settings → RefBook**.
+| | |
+|---|---|
+| **Projects** | One project per IP. Duplicate a project to keep separate stages, such as "Project" and "Project · Final". |
+| **Pictures** | Drag an image onto a card, paste it with **Ctrl+V**, or click 🖼. Click the selected card to view it full size. |
+| **Edit in place** | Type straight into the prompt box. Everything saves automatically. |
+| **Large editor** | **⤢** opens a big window for long prompts. |
+| **Undo** | **Undo** steps back through your prompt edits. Deleted items can be restored with the **Undo** link at the bottom for 8 seconds. |
+| **Drag to reorder** | Sections, cards and groups. Drop a card on another section to move it. |
+| **Safe storage** | Plain files, a backup before every save (last 20 kept), and a trash folder for deleted items. |
 
 ## Reference images (Refs)
 
-Each item has a 🖼 **Refs** tab at the end of its group row. It opens a gallery for character sheets, turnarounds, palettes or mood images. Originals are kept at full quality.
+Every item has its own 🖼 **Refs** gallery at the end of its group row. Drop in any reference for that item, such as character sheets, turnarounds, expressions, palettes or mood images, and the right one is always a click away while you work. Originals are kept at full quality.
 
 ![The Refs gallery of a character](docs/images/refs.png)
 
 - **Drag an image onto the canvas** to load a copy into a Load Image node, or drop it on an existing Load Image to swap the picture.
+- **🔗** (or **Alt**+drag) adds a linked **RefBook Image** node instead, which follows later updates. See [Nodes](#nodes-stay-in-sync-with-refbook).
 - **↻** replaces an image with a new version, keeping its place and name.
 - **★** makes it the item's cover.
 
 ![Dragging a reference onto the canvas](docs/images/drag-to-canvas.gif)
 
-## Nodes: always use the latest version
+## Nodes: stay in sync with RefBook
 
-Copy and drag-to-canvas give you a fixed copy. To have a workflow follow RefBook instead, use the nodes (category **RefBook**):
+There are two ways to bring a prompt or picture into a workflow. Use whichever fits:
 
-- **RefBook Prompt** outputs the text of a prompt group, for example into CLIP Text Encode. The node shows the current text.
-- **RefBook Image** outputs a reference image (IMAGE + MASK) at full size, for example into IPAdapter, Redux, ControlNet or an edit model. The node shows a preview and the original size.
+| | Copy / drag to canvas | RefBook nodes |
+|---|---|---|
+| When RefBook changes | Stays as it was | Uses the new version on the next run |
+| Good for | Locking a final version | Team work, references that are still changing |
+
+The nodes are in the **RefBook** category:
+
+- **RefBook Image** works like a Load Image node, except the picture comes from RefBook. When someone replaces the image in the gallery (↻), the node picks up the new one, so the workflow never falls out of sync. Outputs IMAGE + MASK at original size.
+- **RefBook Prompt** outputs the text of a prompt group, for example into CLIP Text Encode, and shows the current text on the node.
 
 ![RefBook Prompt and RefBook Image nodes in a workflow](docs/images/nodes.png)
 
-Click **Pick from RefBook…** on the node, or **Use panel selection** to take what is selected in the panel. In the Refs gallery, **🔗** adds a linked RefBook Image node to the canvas (or hold **Alt** while dragging a reference onto the canvas). Dropping a reference onto an existing RefBook Image node relinks it.
+To choose what a node shows, click **Pick from RefBook…** or **Use panel selection** on the node, or use 🔗 / Alt+drag in the Refs gallery. Dropping a reference onto an existing RefBook Image node relinks it.
 
-Every run reads RefBook again, so when someone edits a prompt or replaces an image (↻), the next run uses the new version. If the item can't be found (for example the shared folder isn't reachable), the node uses the last version it loaded and shows a warning in the console instead of stopping the workflow.
+If RefBook can't be reached (for example the NAS is offline), the node keeps using the last version it loaded and shows a warning in the console, so the workflow doesn't stop.
 
 ## Where your data is
 
