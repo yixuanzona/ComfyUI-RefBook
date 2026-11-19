@@ -4,7 +4,7 @@
 
 RefBook is a panel, not a node, so it stays on screen whichever workflow you open, and typing or scrolling in it never affects the canvas.
 
-![The RefBook panel floating over a workflow](docs/images/panel.png)
+![RefBook demo: the panel floating over ComfyUI](docs/images/usedemo.gif)
 
 ## Use cases
 

@@ -95,7 +95,7 @@ The README already links these files in `docs/images/`; they still need to be ma
 
 | File | Shows | Notes |
 |---|---|---|
-| `panel.png` | Panel open over a simple workflow: project name, sections, item cards with real cover pictures, a prompt group selected | Top of the README. About 1600 px wide |
+| `usedemo.gif` ✅ | Demo of the panel (top of the README) | Made from `usedemo.mp4` (kept locally, git-ignored): 960 px wide, 12 fps, 128-colour palette, about 8 MB |
 | `refs.png` | Refs tab open on one character: 4–6 references (sheet, turnaround, palette…) | Can be cropped to the panel |
 | `drag-to-canvas.gif` | Drag a reference from the gallery onto the canvas → a Load Image node appears | 5–8 s, about 800–1000 px wide, aim for under 5 MB |
 | `nodes.png` | RefBook Prompt → CLIP Text Encode and RefBook Image → an image input, with the prompt preview and image preview visible | |

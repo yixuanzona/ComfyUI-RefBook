@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 .DS_Store
 Thumbs.db
+# source recordings for README GIFs (too large for the repo)
+docs/images/*.mp4
