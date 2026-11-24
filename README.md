@@ -56,8 +56,6 @@ Every item has its own 🖼 **Refs** gallery at the end of its group row. Drop i
 - **↻** replaces an image with a new version, keeping its place and name.
 - **★** makes it the item's cover.
 
-![Dragging a reference onto the canvas](docs/images/drag-to-canvas.webp)
-
 ## Nodes: stay in sync with RefBook
 
 There are two ways to bring a prompt or picture into a workflow. Use whichever fits:

@@ -104,8 +104,6 @@ ffmpeg -i usedemo02.gif -vf "fps=15,scale=960:-1:flags=lanczos" -c:v libwebp -lo
 | `usedemo.webp` ✅ | Panel demo, top of the README (from `usedemo.mp4`, 15 s) | 4.8 MB |
 | `usedemo02.webp` ✅ | Refs gallery, linking a reference as a RefBook Image node (6 s) | 2.4 MB |
 | `usedemo03.webp` ✅ | RefBook Image + RefBook Prompt nodes following the panel (6 s) | 3.2 MB |
-| `drag-to-canvas.webp` | Drag a reference from the gallery onto the canvas → a Load Image node appears. Not made yet; the README still links it | |
-
 `docs/screenshot.jpg` (old, Chinese UI, placeholder covers) is no longer used by the README and can be removed once the new images are in.
 
 ## Release flow used so far
@@ -121,6 +119,6 @@ Done and on `main`: panel, NAS data folder with conflict handling, Refs gallery,
 
 Next:
 - **Publish to ComfyUI Manager** via the Comfy Registry: add `pyproject.toml` (`[project]` name `comfyui-refbook`, version, description, license MIT, `[project.urls]` Repository; `[tool.comfy]` PublisherId, DisplayName). Waiting for the owner's Publisher ID. Optional: a GitHub Action that publishes on version tags.
-- README example images: the layout and links are in place; the image files still need to be made (see [README images](#readme-images)).
+- README: demos are in (see [README images](#readme-images)). Install section changes once it's on ComfyUI Manager; a Traditional Chinese README (`README.zh-TW.md`) once the English text is final.
 - Planned features: search across items and prompts; export / import a project as one file.
 - Old test branches (`phase2-nas`, `refs-gallery`, `refbook-nodes`) are fully merged and can be deleted once nobody is on them.
