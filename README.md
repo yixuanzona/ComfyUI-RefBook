@@ -4,7 +4,7 @@
 
 RefBook is a panel, not a node, so it stays on screen whichever workflow you open, and typing or scrolling in it never affects the canvas.
 
-![RefBook demo: the panel floating over ComfyUI](docs/images/usedemo.gif)
+![RefBook demo: the panel floating over ComfyUI](docs/images/usedemo.webp)
 
 ## Use cases
 
@@ -49,14 +49,14 @@ Sections, items and prompt groups are all yours to define: add, rename, reorder 
 
 Every item has its own 🖼 **Refs** gallery at the end of its group row. Drop in any reference for that item, such as character sheets, turnarounds, expressions, palettes or mood images, and the right one is always a click away while you work. Originals are kept at full quality.
 
-![The Refs gallery of a character](docs/images/refs.png)
+![Adding references to a character and linking one into the workflow](docs/images/usedemo02.webp)
 
 - **Drag an image onto the canvas** to load a copy into a Load Image node, or drop it on an existing Load Image to swap the picture.
 - **🔗** (or **Alt**+drag) adds a linked **RefBook Image** node instead, which follows later updates. See [Nodes](#nodes-stay-in-sync-with-refbook).
 - **↻** replaces an image with a new version, keeping its place and name.
 - **★** makes it the item's cover.
 
-![Dragging a reference onto the canvas](docs/images/drag-to-canvas.gif)
+![Dragging a reference onto the canvas](docs/images/drag-to-canvas.webp)
 
 ## Nodes: stay in sync with RefBook
 
@@ -72,7 +72,7 @@ The nodes are in the **RefBook** category:
 - **RefBook Image** works like a Load Image node, except the picture comes from RefBook. When someone replaces the image in the gallery (↻), the node picks up the new one, so the workflow never falls out of sync. Outputs IMAGE + MASK at original size.
 - **RefBook Prompt** outputs the text of a prompt group, for example into CLIP Text Encode, and shows the current text on the node.
 
-![RefBook Prompt and RefBook Image nodes in a workflow](docs/images/nodes.png)
+![RefBook Prompt and RefBook Image nodes in a workflow](docs/images/usedemo03.webp)
 
 To choose what a node shows, click **Pick from RefBook…** or **Use panel selection** on the node, or use 🔗 / Alt+drag in the Refs gallery. Dropping a reference onto an existing RefBook Image node relinks it.
 

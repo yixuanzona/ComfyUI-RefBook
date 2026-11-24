@@ -2,5 +2,6 @@ __pycache__/
 *.pyc
 .DS_Store
 Thumbs.db
-# source recordings for README GIFs (too large for the repo)
+# source recordings for the README demos (too large for the repo); only the .webp files are committed
 docs/images/*.mp4
+docs/images/*.gif

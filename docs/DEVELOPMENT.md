@@ -91,14 +91,20 @@ python_embeded\python.exe -s ComfyUI\main.py --port 8199 --cpu ^
 
 ## README images
 
-The README already links these files in `docs/images/`; they still need to be made. Don't push the README until they exist, or GitHub shows broken images. Use a demo project (no unreleased IP) and set the ComfyUI interface language to English.
+Demos in the README are **animated WebP** (GitHub shows them and loops them like a GIF). GIF can't compress recordings with zooming or panning: a 6 s clip was 15–23 MB as a GIF and 2–3 MB as WebP. Use a demo project (no unreleased IP) and the English ComfyUI interface.
 
-| File | Shows | Notes |
+Source recordings (`.mp4` / `.gif`) stay in `docs/images/` locally and are git-ignored; only the `.webp` files are committed. Convert with the ffmpeg that ships with ComfyUI (`python_embeded/Lib/site-packages/imageio_ffmpeg/binaries/ffmpeg-*.exe`):
+
+```
+ffmpeg -i usedemo02.gif -vf "fps=15,scale=960:-1:flags=lanczos" -c:v libwebp -lossless 0 -q:v 75 -compression_level 6 -loop 0 -an usedemo02.webp
+```
+
+| File | Shows | Size |
 |---|---|---|
-| `usedemo.gif` ✅ | Demo of the panel (top of the README) | Made from `usedemo.mp4` (kept locally, git-ignored): 960 px wide, 12 fps, 128-colour palette, about 8 MB |
-| `refs.png` | Refs tab open on one character: 4–6 references (sheet, turnaround, palette…) | Can be cropped to the panel |
-| `drag-to-canvas.gif` | Drag a reference from the gallery onto the canvas → a Load Image node appears | 5–8 s, about 800–1000 px wide, aim for under 5 MB |
-| `nodes.png` | RefBook Prompt → CLIP Text Encode and RefBook Image → an image input, with the prompt preview and image preview visible | |
+| `usedemo.webp` ✅ | Panel demo, top of the README (from `usedemo.mp4`, 15 s) | 4.8 MB |
+| `usedemo02.webp` ✅ | Refs gallery, linking a reference as a RefBook Image node (6 s) | 2.4 MB |
+| `usedemo03.webp` ✅ | RefBook Image + RefBook Prompt nodes following the panel (6 s) | 3.2 MB |
+| `drag-to-canvas.webp` | Drag a reference from the gallery onto the canvas → a Load Image node appears. Not made yet; the README still links it | |
 
 `docs/screenshot.jpg` (old, Chinese UI, placeholder covers) is no longer used by the README and can be removed once the new images are in.
 
